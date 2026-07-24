@@ -1,10 +1,12 @@
 import { redirect } from 'next/navigation';
+import { prisma } from '@/lib/prisma';
 import { listMembershipsForUser } from '@/modules/auth/auth.service';
 import { getPendingLoginFromCookies, getSessionFromCookies } from '@/modules/auth/session';
 import type { MembershipSummary, SessionPayload } from '@/modules/auth/types';
 
 export type AppShellContext = {
   userId: string;
+  userEmail: string;
   session: SessionPayload | null;
   memberships: MembershipSummary[];
   hasActiveOrganization: boolean;
@@ -23,11 +25,18 @@ export async function getAppShellContext(options?: {
     redirect(options.loginMode === 'admin' ? '/membro/escala' : '/admin/escala');
   }
 
-  const memberships = await listMembershipsForUser(userId);
+  const [memberships, user] = await Promise.all([
+    listMembershipsForUser(userId),
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: { email: true },
+    }),
+  ]);
   const hasActiveOrganization = memberships.some((membership) => membership.status === 'ACTIVE');
 
   return {
     userId,
+    userEmail: user?.email ?? '',
     session,
     memberships,
     hasActiveOrganization,
