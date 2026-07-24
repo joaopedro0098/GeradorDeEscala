@@ -44,8 +44,8 @@ export function RegisterForm() {
 
   return (
     <AuthShell
-      title="Cadastro"
-      subtitle="Crie sua conta com nome, e-mail e senha. Você entra direto para escolher ou criar uma organização."
+      title="Criar conta"
+      subtitle="Informe nome, e-mail e senha. Em seguida você escolhe ou cria uma organização."
     >
       <form action={formAction} className="space-y-4" onSubmit={handleSubmit}>
         <Field label="Nome" name="name" />
@@ -66,12 +66,17 @@ export function RegisterForm() {
 
         {errorMessage ? <Alert message={errorMessage} tone="error" /> : null}
 
-        <PrimaryButton label="Criar conta" />
+        <div className="pt-1">
+          <PrimaryButton label="Criar conta gratuita" />
+        </div>
       </form>
 
-      <p className="mt-4 text-center text-sm text-zinc-600">
+      <p className="mt-6 text-center text-sm text-muted-foreground">
         Já tem conta?{' '}
-        <Link href="/login" className="font-medium text-zinc-900 underline">
+        <Link
+          href="/login"
+          className="font-semibold text-foreground underline decoration-gold/50 underline-offset-4 transition hover:text-primary"
+        >
           Entrar
         </Link>
       </p>

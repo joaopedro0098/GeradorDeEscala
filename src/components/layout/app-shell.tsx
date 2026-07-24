@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -77,7 +77,7 @@ export function AppShell({
       <div className="flex min-h-screen">
         <aside className="sticky top-0 flex h-screen w-60 shrink-0 flex-col border-r border-zinc-200 bg-white pt-[env(safe-area-inset-top)]">
           <div className="border-b border-zinc-100 px-4 py-4">
-            <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">Gerador de Escala</p>
+            <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">Equipgestor</p>
             <p className="mt-2 truncate text-sm font-medium text-zinc-900">{organizationLabel}</p>
             <p className="truncate text-xs text-zinc-500">{roleLabel}</p>
           </div>

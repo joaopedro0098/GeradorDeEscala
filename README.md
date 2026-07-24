@@ -1,4 +1,4 @@
-# Gerador de Escala
+# Equipgestor
 
 Sistema de geração automática de escalas para organizações (primeira aplicação: ministério de louvor de igreja), com motor de alocação baseado em satisfação de restrições (CSP). Aplicação web responsiva com suporte a PWA.
 

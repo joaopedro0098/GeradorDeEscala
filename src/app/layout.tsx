@@ -14,13 +14,18 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Gerador de Escala',
-  description: 'Sistema de geração automática de escalas',
-  applicationName: 'Gerador de Escala',
+  title: {
+    default: 'Equipgestor — Escale sua equipe de louvor em minutos',
+    template: '%s · Equipgestor',
+  },
+  description:
+    'Equipgestor cria automaticamente a escala das bandas no mês, com base na disponibilidade de cada membro.',
+  applicationName: 'Equipgestor',
+  authors: [{ name: 'Equipgestor' }],
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: 'Escala',
+    title: 'Equipgestor',
   },
   icons: {
     icon: [{ url: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' }],
@@ -32,7 +37,7 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   viewportFit: 'cover',
-  themeColor: '#18181b',
+  themeColor: '#1a2b4a',
 };
 
 export default function RootLayout({

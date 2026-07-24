@@ -2,8 +2,8 @@ import type { MetadataRoute } from 'next';
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'Gerador de Escala',
-    short_name: 'Escala',
+    name: 'Equipgestor',
+    short_name: 'Equipgestor',
     description: 'Geração e consulta de escalas para organizações',
     start_url: '/',
     scope: '/',

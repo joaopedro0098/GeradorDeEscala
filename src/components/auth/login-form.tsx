@@ -9,19 +9,24 @@ export function LoginForm() {
   const [state, formAction] = useActionState<ActionState, FormData>(loginAction, {});
 
   return (
-    <AuthShell title="Entrar" subtitle="Acesse com seu e-mail e senha. A organização e o papel são escolhidos depois, dentro do app.">
+    <AuthShell
+      title="Entrar"
+      subtitle="Acesse com seu e-mail e senha. A organização e o papel são escolhidos depois, dentro do app."
+    >
       <form action={formAction} className="space-y-4">
         <Field label="E-mail" name="email" type="email" />
         <Field label="Senha" name="password" type="password" />
 
         {state.error ? <Alert message={state.error} tone="error" /> : null}
 
-        <PrimaryButton label="Entrar" />
+        <div className="pt-1">
+          <PrimaryButton label="Entrar" />
+        </div>
       </form>
 
-      <p className="mt-4 text-center text-sm text-zinc-600">
+      <p className="mt-6 text-center text-sm text-muted-foreground">
         Não tem conta?{' '}
-        <Link href="/cadastro" className="font-medium text-zinc-900 underline">
+        <Link href="/cadastro" className="font-semibold text-foreground underline decoration-gold/50 underline-offset-4 transition hover:text-primary">
           Cadastre-se
         </Link>
       </p>

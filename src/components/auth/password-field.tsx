@@ -59,11 +59,11 @@ export function PasswordField({
   const [visible, setVisible] = useState(false);
 
   return (
-    <label className="block text-sm font-medium text-zinc-800">
+    <label className="block text-sm font-medium text-foreground">
       {label}
-      <div className="relative mt-1">
+      <div className="relative mt-1.5">
         <input
-          className="w-full rounded-lg border border-zinc-300 py-2.5 pl-3 pr-10 text-base outline-none ring-zinc-900 focus:ring-2 sm:text-sm"
+          className="w-full rounded-xl border border-border bg-background py-2.5 pl-3.5 pr-10 text-base text-foreground outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/20 sm:text-sm"
           name={name}
           type={visible ? 'text' : 'password'}
           required={required}
@@ -73,7 +73,7 @@ export function PasswordField({
         />
         <button
           type="button"
-          className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-zinc-400 hover:text-zinc-600"
+          className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-muted-foreground transition hover:bg-muted hover:text-foreground"
           aria-label={visible ? 'Ocultar senha' : 'Mostrar senha'}
           onClick={() => setVisible((current) => !current)}
         >

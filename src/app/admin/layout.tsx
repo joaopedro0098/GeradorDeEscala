@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+﻿import type { ReactNode } from 'react';
 import { redirect } from 'next/navigation';
 import { AppShell } from '@/components/layout/app-shell';
 import { AdminPromotionModal } from '@/components/notifications/admin-promotion-modal';
@@ -15,7 +15,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
 
   return (
     <>
-      <AppShell context={context} title="Gerador de Escala">
+      <AppShell context={context} title="Equipgestor">
         {children}
       </AppShell>
       {promotionNotification ? (
