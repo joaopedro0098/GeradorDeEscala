@@ -248,7 +248,9 @@ export function AppShell({
             collapsed ? 'ml-[4.5rem]' : 'ml-60'
           }`}
         >
-          <main className="flex-1 px-4 py-6 sm:px-6 sm:py-8">{children}</main>
+          <main className="flex-1 px-[60px] py-6 sm:py-8">
+            <div className="mx-auto w-full max-w-5xl">{children}</div>
+          </main>
         </div>
       </div>
     </div>

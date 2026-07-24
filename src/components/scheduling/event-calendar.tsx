@@ -95,11 +95,19 @@ export function EventCalendar({
               type="button"
               disabled={isPending}
               onClick={() => toggleDate(dateKey)}
-              className={`rounded-lg border px-2 py-3 text-sm ${
+              className={`rounded-lg border px-2 py-3 text-sm transition-colors ${
                 selectedDates.has(dateKey)
-                  ? 'border-zinc-900 bg-zinc-900 text-white'
+                  ? 'text-slate-800'
                   : 'border-zinc-200 bg-zinc-50 text-zinc-800'
               }`}
+              style={
+                selectedDates.has(dateKey)
+                  ? {
+                      backgroundColor: 'rgba(74, 222, 128, 0.28)',
+                      borderColor: 'rgba(34, 197, 94, 0.45)',
+                    }
+                  : undefined
+              }
             >
               {Number(dateKey.slice(-2))}
             </button>
