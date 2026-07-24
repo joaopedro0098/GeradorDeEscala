@@ -41,6 +41,16 @@ enum ScheduleGenerationStatus {
   INCOMPLETE_BY_TIMEOUT
 }
 
+enum GroupMode {
+  /// Prioritizes scheduling group members together, but never blocks the
+  /// event or generates a blank slot if that isn't possible.
+  FLEXIBLE
+  /// Attempts to schedule the entire group together; if not feasible for a
+  /// given event, none of the group's members are auto-assigned to it
+  /// (their slots are left blank rather than split apart).
+  STRICT
+}
+
 enum NotificationType {
   ADMIN_PROMOTED
   MEMBERSHIP_APPROVED
@@ -58,36 +68,39 @@ model User {
 }
 
 model Organization {
-  id                     String                  @id @default(cuid())
-  name                   String
-  inviteCode             String                  @unique
-  createdAt              DateTime                @default(now())
-  updatedAt              DateTime                @updatedAt
-  memberships            Membership[]
-  roles                  Role[]
-  events                 Event[]
-  dayOfWeekRequirements  DayOfWeekRequirement[]
-  participationConfig    ParticipationConfig?
-  intervalRules          IntervalRule[]
-  priorityRoles          PriorityRole[]
-  schedules              Schedule[]
+  id                    String                 @id @default(cuid())
+  name                  String
+  inviteCode            String                 @unique
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  memberships           Membership[]
+  roles                 Role[]
+  events                Event[]
+  dayOfWeekRequirements DayOfWeekRequirement[]
+  participationConfig   ParticipationConfig?
+  intervalRules         IntervalRule[]
+  priorityRoles         PriorityRole[]
+  schedules             Schedule[]
+  memberGroups          MemberGroup[]
 }
 
 model Membership {
-  id              String                      @id @default(cuid())
-  userId          String
-  organizationId  String
-  status          MembershipStatus            @default(PENDING)
-  isAdmin         Boolean                     @default(false)
-  isPrimaryAdmin  Boolean                     @default(false)
-  createdAt       DateTime                    @default(now())
-  updatedAt       DateTime                    @updatedAt
-  user            User                        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  organization    Organization                @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  rolePreferences MembershipRolePreference[]
-  availabilities  Availability[]
-  scheduleSlots   ScheduleSlot[]
-  notifications   Notification[]
+  id               String                      @id @default(cuid())
+  userId           String
+  organizationId   String
+  status           MembershipStatus            @default(PENDING)
+  isAdmin          Boolean                     @default(false)
+  isPrimaryAdmin   Boolean                     @default(false)
+  createdAt        DateTime                    @default(now())
+  updatedAt        DateTime                    @updatedAt
+  user             User                        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization     Organization                @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  rolePreferences  MembershipRolePreference[]
+  roleCombinations MembershipRoleCombination[]
+  availabilities   Availability[]
+  scheduleSlots    ScheduleSlot[]
+  notifications    Notification[]
+  groupMembership  GroupMembership?
 
   @@unique([userId, organizationId])
   @@index([organizationId, status])
@@ -101,6 +114,8 @@ model Role {
   updatedAt             DateTime                    @updatedAt
   organization          Organization                @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   membershipPreferences MembershipRolePreference[]
+  combinationsAsRoleA   MembershipRoleCombination[] @relation("RoleCombinationRoleA")
+  combinationsAsRoleB   MembershipRoleCombination[] @relation("RoleCombinationRoleB")
   dayOfWeekRequirements DayOfWeekRequirement[]
   intervalRules         IntervalRule[]
   priorityRoles         PriorityRole[]
@@ -122,6 +137,57 @@ model MembershipRolePreference {
   @@unique([membershipId, sortOrder])
 }
 
+/// Pair of roles a specific member has marked as safe to accumulate
+/// simultaneously in the same event (e.g. "guitar + vocals"). Stored with a
+/// canonical order (roleAId < roleBId) so a pair is never duplicated in
+/// reverse. Distinct from MembershipRolePreference, which only expresses
+/// which roles a member can perform alone and in what order of preference.
+model MembershipRoleCombination {
+  id           String     @id @default(cuid())
+  membershipId String
+  roleAId      String
+  roleBId      String
+  createdAt    DateTime   @default(now())
+  membership   Membership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  roleA        Role       @relation("RoleCombinationRoleA", fields: [roleAId], references: [id], onDelete: Cascade)
+  roleB        Role       @relation("RoleCombinationRoleB", fields: [roleBId], references: [id], onDelete: Cascade)
+
+  @@unique([membershipId, roleAId, roleBId])
+  @@index([membershipId])
+}
+
+/// A named group of 2+ members the admin wants scheduled together, in either
+/// FLEXIBLE (soft preference) or STRICT (all-or-nothing) mode. See
+/// GroupMembership for the membership-to-group link.
+model MemberGroup {
+  id             String            @id @default(cuid())
+  organizationId String
+  name           String
+  mode           GroupMode
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  members        GroupMembership[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+}
+
+/// Links a membership to at most one group at a time — a person cannot
+/// belong to more than one group, which is enforced both here (unique on
+/// membershipId alone, not the [groupId, membershipId] pair) and in the
+/// service layer when adding a member to a group.
+model GroupMembership {
+  id           String      @id @default(cuid())
+  groupId      String
+  membershipId String      @unique
+  createdAt    DateTime    @default(now())
+  group        MemberGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  membership   Membership  @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+
+  @@index([groupId])
+}
+
 model Event {
   id             String         @id @default(cuid())
   organizationId String
@@ -137,15 +203,15 @@ model Event {
 }
 
 model DayOfWeekRequirement {
-  id             String      @id @default(cuid())
+  id             String       @id @default(cuid())
   organizationId String
   dayOfWeek      DayOfWeek
   roleId         String
   quantity       Int
-  createdAt      DateTime    @default(now())
-  updatedAt      DateTime    @updatedAt
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  role           Role        @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  role           Role         @relation(fields: [roleId], references: [id], onDelete: Cascade)
 
   @@unique([organizationId, dayOfWeek, roleId])
 }
@@ -203,18 +269,18 @@ model PriorityRole {
 }
 
 model Schedule {
-  id                String                    @id @default(cuid())
-  organizationId    String
-  year              Int
-  month             Int
-  status            ScheduleStatus            @default(DRAFT)
-  generationStatus  ScheduleGenerationStatus?
-  hasPublishedGaps  Boolean                   @default(false)
-  publishedAt       DateTime?
-  createdAt         DateTime                  @default(now())
-  updatedAt         DateTime                  @updatedAt
-  organization      Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  slots             ScheduleSlot[]
+  id               String                    @id @default(cuid())
+  organizationId   String
+  year             Int
+  month            Int
+  status           ScheduleStatus            @default(DRAFT)
+  generationStatus ScheduleGenerationStatus?
+  hasPublishedGaps Boolean                   @default(false)
+  publishedAt      DateTime?
+  createdAt        DateTime                  @default(now())
+  updatedAt        DateTime                  @updatedAt
+  organization     Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  slots            ScheduleSlot[]
 
   @@unique([organizationId, year, month])
 }
