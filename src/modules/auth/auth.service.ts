@@ -370,7 +370,21 @@ export async function listPendingMembers(organizationId: string) {
 export async function listActiveMembers(organizationId: string) {
   return prisma.membership.findMany({
     where: { organizationId, status: 'ACTIVE' },
-    include: { user: { select: { id: true, name: true, email: true } } },
+    include: {
+      user: { select: { id: true, name: true, email: true } },
+      rolePreferences: {
+        orderBy: { sortOrder: 'asc' },
+        select: {
+          sortOrder: true,
+          role: { select: { id: true, name: true } },
+        },
+      },
+      groupMembership: {
+        select: {
+          group: { select: { id: true, name: true } },
+        },
+      },
+    },
     orderBy: { createdAt: 'asc' },
   });
 }
