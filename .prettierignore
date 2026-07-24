@@ -1,0 +1,10 @@
+.next
+node_modules
+coverage
+public
+package-lock.json
+src/generated
+.agents
+.claude
+.windsurf
+skills-lock.json
