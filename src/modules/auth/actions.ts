@@ -17,6 +17,8 @@ import {
   registerUser,
   rejectMembership,
   removeMembership,
+  updateUserEmail,
+  updateUserPassword,
 } from '@/modules/auth/auth.service';
 import { ActionState, handleActionError } from '@/modules/auth/action-errors';
 import { resolveDefaultContext, normalizeEmail } from '@/modules/auth/auth-logic';
@@ -29,8 +31,7 @@ import {
   setPendingLoginCookie,
   setSessionCookie,
 } from '@/modules/auth/session';
-import { canManageAdminRoles, canManageMembers } from '@/modules/auth/permissions';
-import { isPlanTier } from '@/modules/organizations/plans';
+import { canManageAdminRoles, canManageMembers, canViewPlans } from '@/modules/auth/permissions';
 import { prisma } from '@/lib/prisma';
 import type { LoginMode } from '@/modules/auth/types';
 
@@ -47,7 +48,19 @@ const loginSchema = z.object({
 
 const createOrganizationSchema = z.object({
   organizationName: z.string().trim().min(2, 'Informe o nome da organização.'),
-  planTier: z.string().refine(isPlanTier, 'Selecione um plano.'),
+});
+
+const updateEmailSchema = z.object({
+  email: z.email('Informe um e-mail válido.').transform(normalizeEmail),
+});
+
+const updatePasswordSchema = z.object({
+  currentPassword: z.string().min(1, 'Informe sua senha atual.'),
+  newPassword: z.string().min(8, 'A nova senha deve ter pelo menos 8 caracteres.'),
+  confirmPassword: z.string().min(1, 'Confirme a nova senha.'),
+}).refine((data) => data.newPassword === data.confirmPassword, {
+  message: 'As senhas não coincidem.',
+  path: ['confirmPassword'],
 });
 
 const joinOrganizationSchema = z.object({
@@ -134,13 +147,11 @@ export async function createOrganizationAction(
 
     const parsed = createOrganizationSchema.parse({
       organizationName: formData.get('organizationName'),
-      planTier: formData.get('planTier'),
     });
 
     const created = await createOrganizationForAdmin({
       userId,
       organizationName: parsed.organizationName,
-      planTier: parsed.planTier,
     });
 
     if (!session && pending) {
@@ -155,6 +166,7 @@ export async function createOrganizationAction(
     } else {
       revalidatePath('/admin/organizacoes');
       revalidatePath('/membro/organizacoes');
+      revalidatePath('/admin/conta');
       return {
         success: `Organização "${created.organizationName}" criada. Ela já aparece na lista — troque quando quiser.`,
       };
@@ -364,4 +376,78 @@ export async function getOrganizationsPageData() {
     pending,
     memberships,
   };
+}
+
+export async function updateEmailAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  try {
+    const userId = await resolveActingUserId();
+    if (!userId) {
+      return { error: 'Sessão expirada. Faça login novamente.' };
+    }
+
+    const parsed = updateEmailSchema.parse({
+      email: formData.get('email'),
+    });
+
+    await updateUserEmail({ userId, email: parsed.email });
+    revalidatePath('/admin/conta');
+    revalidatePath('/membro/conta');
+    return { success: 'E-mail atualizado.' };
+  } catch (error) {
+    return handleActionError(error);
+  }
+}
+
+export async function updatePasswordAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  try {
+    const userId = await resolveActingUserId();
+    if (!userId) {
+      return { error: 'Sessão expirada. Faça login novamente.' };
+    }
+
+    const parsed = updatePasswordSchema.parse({
+      currentPassword: formData.get('currentPassword'),
+      newPassword: formData.get('newPassword'),
+      confirmPassword: formData.get('confirmPassword'),
+    });
+
+    await updateUserPassword({
+      userId,
+      currentPassword: parsed.currentPassword,
+      newPassword: parsed.newPassword,
+    });
+
+    return { success: 'Senha atualizada.' };
+  } catch (error) {
+    return handleActionError(error);
+  }
+}
+
+export async function getAccountPageData() {
+  const session = await getSessionFromCookies();
+  const pending = await getPendingLoginFromCookies();
+  const userId = session?.userId ?? pending?.userId;
+
+  if (!userId) return null;
+
+  const user = await prisma.user.findUniqueOrThrow({
+    where: { id: userId },
+    select: { email: true, name: true },
+  });
+
+  if (!session || !canViewPlans(session)) {
+    return { user, session, organization: null };
+  }
+
+  const organization = await prisma.organization.findUnique({
+    where: { id: session.organizationId },
+    select: {
+      name: true,
+      planTier: true,
+      subscriptionStatus: true,
+      trialStartedAt: true,
+    },
+  });
+
+  return { user, session, organization };
 }

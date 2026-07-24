@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { logoutAction, switchContextAction } from '@/modules/auth/actions';
-import { canViewPlans } from '@/modules/auth/permissions';
 import type { AppShellContext } from '@/lib/app-shell.server';
 
 type NavItem = {
@@ -17,11 +16,11 @@ function buildAdminNav(context: AppShellContext): NavItem[] {
     return [
       { href: '/admin', label: 'Início' },
       { href: '/admin/organizacoes', label: 'Organizações' },
-      { href: '/admin/planos', label: 'Planos' },
+      { href: '/admin/conta', label: 'Conta' },
     ];
   }
 
-  const items: NavItem[] = [
+  return [
     { href: '/admin', label: 'Início' },
     { href: '/admin/configuracoes', label: 'Configurações' },
     { href: '/admin/disponibilidade', label: 'Disponibilidade' },
@@ -29,13 +28,8 @@ function buildAdminNav(context: AppShellContext): NavItem[] {
     { href: '/admin/eventos', label: 'Eventos' },
     { href: '/admin/escala', label: 'Escala' },
     { href: '/admin/organizacoes', label: 'Organizações' },
+    { href: '/admin/conta', label: 'Conta' },
   ];
-
-  if (canViewPlans(context.session)) {
-    items.push({ href: '/admin/planos', label: 'Planos' });
-  }
-
-  return items;
 }
 
 function buildMemberNav(): NavItem[] {
@@ -44,6 +38,7 @@ function buildMemberNav(): NavItem[] {
     { href: '/membro/disponibilidade', label: 'Disponibilidade' },
     { href: '/membro/escala', label: 'Escala' },
     { href: '/membro/organizacoes', label: 'Organizações' },
+    { href: '/membro/conta', label: 'Conta' },
   ];
 }
 

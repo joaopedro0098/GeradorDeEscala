@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState } from 'react';
+import { CreateOrganizationForm } from '@/components/account/create-organization-form';
 import { joinOrganizationAction, switchContextAction, type ActionState } from '@/modules/auth/actions';
 import { Alert, Field, PrimaryButton } from '@/components/auth/auth-ui';
 import type { MembershipSummary, SessionPayload } from '@/modules/auth/types';
@@ -21,7 +22,7 @@ function OrganizationList({
   if (memberships.length === 0) {
     return (
       <p className="rounded-xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-5 text-sm text-zinc-600">
-        Nenhuma participação ainda. Para criar a sua, use a aba <span className="font-medium text-zinc-900">Planos</span>.
+        Nenhuma participação ainda. Crie uma organização abaixo ou entre com um código de convite.
       </p>
     );
   }
@@ -121,18 +122,21 @@ export function OrganizationsPageClient({
   session: SessionPayload | null;
   memberships: MembershipSummary[];
 }) {
+  const isFirstOrganization = !session && !memberships.some((membership) => membership.status === 'ACTIVE');
+
   return (
     <div className="space-y-6">
       <section className="rounded-2xl border border-zinc-200 bg-white p-6">
         <h2 className="text-lg font-semibold text-zinc-900">Suas organizações</h2>
         <p className="mt-1 text-sm text-zinc-600">
-          Troque de contexto no estilo perfil. Criar uma nova organização fica na aba Planos.
+          Troque de contexto no estilo perfil. Criar uma nova organização não troca automaticamente.
         </p>
         <div className="mt-4">
           <OrganizationList memberships={memberships} currentMembershipId={session?.membershipId} />
         </div>
       </section>
 
+      <CreateOrganizationForm isFirstOrganization={isFirstOrganization} />
       <JoinOrganizationPanel />
     </div>
   );

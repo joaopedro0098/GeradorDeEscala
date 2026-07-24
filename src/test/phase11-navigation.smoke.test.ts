@@ -102,6 +102,8 @@ describe('Fase 11 — smoke navegação multi-org / troca sem logout', () => {
         where: { id: created.organizationId },
       });
       expect(org.planTier).toBe('BASIC');
+      expect(org.subscriptionStatus).toBe('TRIAL');
+      expect(org.trialStartedAt).toBeInstanceOf(Date);
 
       const session = await buildSessionForMembership({
         userId: ctx.userId!,

@@ -63,6 +63,12 @@ enum PlanTier {
   ENTERPRISE
 }
 
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  EXPIRED
+}
+
 model User {
   id           String       @id @default(cuid())
   email        String       @unique
@@ -78,6 +84,8 @@ model Organization {
   name                  String
   inviteCode            String                 @unique
   planTier              PlanTier               @default(BASIC)
+  subscriptionStatus    SubscriptionStatus     @default(TRIAL)
+  trialStartedAt        DateTime               @default(now())
   createdAt             DateTime               @default(now())
   updatedAt             DateTime               @updatedAt
   memberships           Membership[]

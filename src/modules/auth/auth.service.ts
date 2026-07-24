@@ -1,4 +1,4 @@
-import { NotificationType, type PlanTier } from '@/generated/prisma/client';
+import { NotificationType, type PlanTier, type SubscriptionStatus } from '@/generated/prisma/client';
 import { prisma } from '@/lib/prisma';
 import { generateInviteCode, normalizeEmail } from '@/modules/auth/auth-logic';
 import { hashPassword, verifyPassword } from '@/modules/auth/password';
@@ -134,7 +134,7 @@ export async function buildSessionForMembership(input: {
 export async function createOrganizationForAdmin(input: {
   userId: string;
   organizationName: string;
-  planTier: PlanTier;
+  planTier?: PlanTier;
 }): Promise<{
   organizationId: string;
   membershipId: string;
@@ -142,12 +142,16 @@ export async function createOrganizationForAdmin(input: {
   inviteCode: string;
 }> {
   const inviteCode = generateInviteCode(input.organizationName);
+  const hasActiveSubscription = await userHasActiveSubscription(input.userId);
+  const subscriptionStatus: SubscriptionStatus = hasActiveSubscription ? 'ACTIVE' : 'TRIAL';
 
   const organization = await prisma.organization.create({
     data: {
       name: input.organizationName.trim(),
       inviteCode,
-      planTier: input.planTier,
+      planTier: input.planTier ?? 'BASIC',
+      subscriptionStatus,
+      trialStartedAt: new Date(),
       memberships: {
         create: {
           userId: input.userId,
@@ -173,6 +177,61 @@ export async function createOrganizationForAdmin(input: {
     organizationName: organization.name,
     inviteCode: organization.inviteCode,
   };
+}
+
+async function userHasActiveSubscription(userId: string): Promise<boolean> {
+  const activeOrg = await prisma.organization.findFirst({
+    where: {
+      subscriptionStatus: 'ACTIVE',
+      memberships: {
+        some: {
+          userId,
+          isPrimaryAdmin: true,
+          status: 'ACTIVE',
+        },
+      },
+    },
+    select: { id: true },
+  });
+
+  return activeOrg !== null;
+}
+
+export async function updateUserEmail(input: {
+  userId: string;
+  email: string;
+}): Promise<void> {
+  const email = normalizeEmail(input.email);
+  const existingUser = await findUserByEmail(email);
+
+  if (existingUser && existingUser.id !== input.userId) {
+    throw new AuthServiceError('EMAIL_ALREADY_EXISTS', 'Este e-mail já está em uso.');
+  }
+
+  await prisma.user.update({
+    where: { id: input.userId },
+    data: { email },
+  });
+}
+
+export async function updateUserPassword(input: {
+  userId: string;
+  currentPassword: string;
+  newPassword: string;
+}): Promise<void> {
+  const user = await prisma.user.findUniqueOrThrow({ where: { id: input.userId } });
+  const passwordMatches = await verifyPassword(input.currentPassword, user.passwordHash);
+
+  if (!passwordMatches) {
+    throw new AuthServiceError('INVALID_CREDENTIALS', 'Senha atual incorreta.');
+  }
+
+  const passwordHash = await hashPassword(input.newPassword);
+
+  await prisma.user.update({
+    where: { id: input.userId },
+    data: { passwordHash },
+  });
 }
 
 export async function listPendingMembers(organizationId: string) {

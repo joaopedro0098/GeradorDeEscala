@@ -5,7 +5,9 @@ import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import type { DayOfWeek, IntervalCountMode } from '@/generated/prisma/client';
 import { requireSession } from '@/lib/auth.server';
+import { prisma } from '@/lib/prisma';
 import { canManageMembers } from '@/modules/auth/permissions';
+import { canGenerateScheduleForOrganization } from '@/modules/organizations/subscription.logic';
 import {
   addPriorityRole,
   ConfigurationServiceError,
@@ -277,13 +279,28 @@ export async function getAdminSchedulePageData(year: number, month: number) {
     redirect('/admin');
   }
 
+  const organization = await prisma.organization.findUniqueOrThrow({
+    where: { id: session.organizationId },
+    select: { subscriptionStatus: true, trialStartedAt: true },
+  });
+
+  const subscriptionCheck = canGenerateScheduleForOrganization(organization);
+
   const [overview, shortagePreview, assignmentCandidates] = await Promise.all([
     getScheduleOverviewForAdmin(session.organizationId, year, month),
     getPreGenerationShortagePreview(session.organizationId, year, month),
     getAssignmentCandidatesForAdmin(session.organizationId, year, month),
   ]);
 
-  return { session, overview, shortagePreview, assignmentCandidates, year, month };
+  return {
+    session,
+    overview,
+    shortagePreview,
+    assignmentCandidates,
+    year,
+    month,
+    generateSubscriptionNotice: subscriptionCheck.allowed ? null : subscriptionCheck.reason ?? null,
+  };
 }
 
 export async function getMemberSchedulePageData(year: number, month: number) {
@@ -299,6 +316,15 @@ export async function generateScheduleAction(
 ): Promise<{ error?: string; success?: string; status?: SolverStatus; blankCount?: number }> {
   try {
     const session = await requireAdminSession();
+    const organization = await prisma.organization.findUniqueOrThrow({
+      where: { id: session.organizationId },
+      select: { subscriptionStatus: true, trialStartedAt: true },
+    });
+    const subscriptionCheck = canGenerateScheduleForOrganization(organization);
+    if (!subscriptionCheck.allowed) {
+      return { error: subscriptionCheck.reason };
+    }
+
     const result = await generateSchedule(session.organizationId, year, month, { keepManual });
     revalidateSchedule(year, month);
     return { success: 'Escala gerada.', status: result.status, blankCount: result.blankCount };
