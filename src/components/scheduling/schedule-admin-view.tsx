@@ -6,6 +6,7 @@ import {
   generateScheduleAction,
   publishScheduleAction,
   setScheduleSlotMinisterAction,
+  undoLastGenerationAction,
 } from '@/modules/scheduling/actions';
 import {
   GENERATION_STATUS_LABELS,
@@ -96,6 +97,30 @@ export function ScheduleAdminView({
     });
   }
 
+  function handleUndo() {
+    setError(null);
+    setFeedback(null);
+    startTransition(async () => {
+      const result = await undoLastGenerationAction(initialYear, initialMonth);
+      if (result.error) {
+        setError(result.error);
+        return;
+      }
+      setFeedback(result.success ?? 'Última geração desfeita.');
+      router.refresh();
+    });
+  }
+
+  function formatPublishedAt(iso: string | null | undefined): string {
+    if (!iso) return 'data desconhecida';
+    return new Intl.DateTimeFormat('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      timeZone: 'UTC',
+    }).format(new Date(iso));
+  }
+
   const monthLabel = new Intl.DateTimeFormat('pt-BR', {
     month: 'long',
     year: 'numeric',
@@ -154,6 +179,13 @@ export function ScheduleAdminView({
           </div>
         ) : null}
 
+        {overview?.hasPendingDraft ? (
+          <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            Rascunho gerado pelo algoritmo. Membros ainda veem a escala publicada em{' '}
+            {formatPublishedAt(overview.memberVisiblePublishedAt)}. Publique para substituir.
+          </p>
+        ) : null}
+
         {error ? <p className="mt-4 text-sm text-red-700">{error}</p> : null}
         {feedback ? <p className="mt-4 text-sm text-emerald-700">{feedback}</p> : null}
 
@@ -178,7 +210,7 @@ export function ScheduleAdminView({
             onClick={handleGenerateClick}
             className="rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-60"
           >
-            Gerar escala
+            {overview ? 'Regenerar escala' : 'Gerar escala'}
           </button>
           {overview && overview.status === 'DRAFT' ? (
             <button
@@ -188,6 +220,16 @@ export function ScheduleAdminView({
               className="rounded-lg border border-zinc-900 px-4 py-2.5 text-sm font-medium text-zinc-900 hover:bg-zinc-100 disabled:opacity-60"
             >
               Publicar escala
+            </button>
+          ) : null}
+          {overview?.hasPreviousVersion ? (
+            <button
+              type="button"
+              disabled={isPending}
+              onClick={handleUndo}
+              className="rounded-lg border border-zinc-300 px-4 py-2.5 text-sm text-zinc-700 hover:bg-zinc-50 disabled:opacity-60"
+            >
+              Desfazer última geração
             </button>
           ) : null}
         </div>

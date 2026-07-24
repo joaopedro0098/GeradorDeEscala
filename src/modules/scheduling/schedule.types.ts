@@ -34,6 +34,9 @@ export type ScheduleOverview = {
   generationStatus: SolverStatus | null;
   hasPublishedGaps: boolean;
   publishedAt: string | null;
+  hasPendingDraft: boolean;
+  hasPreviousVersion: boolean;
+  memberVisiblePublishedAt: string | null;
   events: ScheduleEventView[];
   memberCounts: MemberAssignmentCount[];
 };

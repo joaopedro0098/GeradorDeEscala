@@ -269,20 +269,80 @@ model PriorityRole {
 }
 
 model Schedule {
-  id               String                    @id @default(cuid())
-  organizationId   String
-  year             Int
-  month            Int
-  status           ScheduleStatus            @default(DRAFT)
-  generationStatus ScheduleGenerationStatus?
-  hasPublishedGaps Boolean                   @default(false)
-  publishedAt      DateTime?
-  createdAt        DateTime                  @default(now())
-  updatedAt        DateTime                  @updatedAt
-  organization     Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  slots            ScheduleSlot[]
+  id                  String                     @id @default(cuid())
+  organizationId      String
+  year                Int
+  month               Int
+  status              ScheduleStatus             @default(DRAFT)
+  generationStatus    ScheduleGenerationStatus?
+  hasPublishedGaps    Boolean                    @default(false)
+  publishedAt         DateTime?
+  /// True after regenerating a published schedule (or after undo while members
+  /// still see a frozen snapshot). Working copy is a draft until Publish.
+  hasPendingDraft     Boolean                    @default(false)
+  publishedSnapshotId String?                    @unique
+  createdAt           DateTime                   @default(now())
+  updatedAt           DateTime                   @updatedAt
+  organization        Organization               @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  publishedSnapshot   SchedulePublishedSnapshot? @relation(fields: [publishedSnapshotId], references: [id], onDelete: SetNull)
+  previousVersion     SchedulePreviousVersion?
+  slots               ScheduleSlot[]
 
   @@unique([organizationId, year, month])
+}
+
+/// Single "undo" slot per schedule — replaced on each save, never accumulated.
+model SchedulePreviousVersion {
+  id               String                        @id @default(cuid())
+  scheduleId       String                        @unique
+  savedAt          DateTime                      @default(now())
+  statusAtSave     ScheduleStatus
+  generationStatus ScheduleGenerationStatus?
+  hasPublishedGaps Boolean
+  publishedAt      DateTime?
+  schedule         Schedule                      @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  slots            SchedulePreviousVersionSlot[]
+}
+
+model SchedulePreviousVersionSlot {
+  id           String                  @id @default(cuid())
+  previousId   String
+  eventId      String
+  roleId       String
+  slotIndex    Int                     @default(0)
+  membershipId String?
+  isManual     Boolean
+  isMinister   Boolean
+  previous     SchedulePreviousVersion @relation(fields: [previousId], references: [id], onDelete: Cascade)
+
+  @@unique([previousId, eventId, roleId, slotIndex])
+  @@index([previousId])
+}
+
+/// Frozen member-visible snapshot while hasPendingDraft is true.
+model SchedulePublishedSnapshot {
+  id               String                          @id @default(cuid())
+  frozenAt         DateTime                        @default(now())
+  generationStatus ScheduleGenerationStatus?
+  hasPublishedGaps Boolean
+  publishedAt      DateTime?
+  schedule         Schedule?
+  slots            SchedulePublishedSnapshotSlot[]
+}
+
+model SchedulePublishedSnapshotSlot {
+  id           String                    @id @default(cuid())
+  snapshotId   String
+  eventId      String
+  roleId       String
+  slotIndex    Int                       @default(0)
+  membershipId String?
+  isManual     Boolean
+  isMinister   Boolean
+  snapshot     SchedulePublishedSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+
+  @@unique([snapshotId, eventId, roleId, slotIndex])
+  @@index([snapshotId])
 }
 
 model ScheduleSlot {

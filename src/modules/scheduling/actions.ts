@@ -28,6 +28,7 @@ import {
   publishSchedule,
   ScheduleServiceError,
   setScheduleSlotMinister,
+  undoLastGeneration,
 } from '@/modules/scheduling/schedule.service';
 import type { SolverStatus } from '@/modules/scheduling/solver.types';
 
@@ -326,6 +327,20 @@ export async function setScheduleSlotMinisterAction(
     await setScheduleSlotMinister(session.organizationId, scheduleSlotId);
     revalidateSchedule(year, month);
     return {};
+  } catch (error) {
+    return mapError(error);
+  }
+}
+
+export async function undoLastGenerationAction(
+  year: number,
+  month: number,
+): Promise<{ error?: string; success?: string }> {
+  try {
+    const session = await requireAdminSession();
+    await undoLastGeneration(session.organizationId, year, month);
+    revalidateSchedule(year, month);
+    return { success: 'Última geração desfeita.' };
   } catch (error) {
     return mapError(error);
   }
