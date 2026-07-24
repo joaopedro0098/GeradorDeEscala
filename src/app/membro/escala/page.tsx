@@ -1,4 +1,4 @@
-import { ScheduleMemberView } from '@/components/scheduling/schedule-member-view';
+import { ScheduleMemberPageClient } from '@/components/scheduling/schedule-member-page-client';
 import { getMemberSchedulePageData } from '@/modules/scheduling/actions';
 
 type PageProps = {
@@ -15,11 +15,12 @@ export default async function MemberSchedulePage({ searchParams }: PageProps) {
   const data = await getMemberSchedulePageData(year, month);
 
   return (
-    <ScheduleMemberView
+    <ScheduleMemberPageClient
+      organizationId={data.session.organizationId}
       initialYear={year}
       initialMonth={month}
       initialSelectedDate={selectedDate}
-      overview={data.overview}
+      serverOverview={data.overview}
     />
   );
 }

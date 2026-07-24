@@ -34,12 +34,14 @@ export function ScheduleAdminView({
   overview,
   shortagePreview,
   assignmentCandidates,
+  readOnly = false,
 }: {
   initialYear: number;
   initialMonth: number;
   overview: ScheduleOverview | null;
   shortagePreview: ShortageEntryView[];
   assignmentCandidates: ScheduleAssignmentCandidate[];
+  readOnly?: boolean;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -48,6 +50,7 @@ export function ScheduleAdminView({
   const [error, setError] = useState<string | null>(null);
 
   function shiftMonth(delta: number) {
+    if (readOnly) return;
     const next = new Date(Date.UTC(initialYear, initialMonth - 1 + delta, 1));
     router.push(`/admin/escala?year=${next.getUTCFullYear()}&month=${next.getUTCMonth() + 1}`);
   }
@@ -83,6 +86,7 @@ export function ScheduleAdminView({
   }
 
   function handleGenerateClick() {
+    if (readOnly) return;
     setError(null);
     setFeedback(null);
     if (shortagePreview.length > 0) {
@@ -183,7 +187,8 @@ export function ScheduleAdminView({
           <div className="flex items-center gap-2">
             <button
               type="button"
-              className="rounded-lg border px-3 py-1.5 text-sm"
+              disabled={readOnly}
+              className="rounded-lg border px-3 py-1.5 text-sm disabled:opacity-40"
               onClick={() => shiftMonth(-1)}
             >
               ‹
@@ -191,7 +196,8 @@ export function ScheduleAdminView({
             <span className="min-w-36 text-center text-sm font-medium capitalize">{monthLabel}</span>
             <button
               type="button"
-              className="rounded-lg border px-3 py-1.5 text-sm"
+              disabled={readOnly}
+              className="rounded-lg border px-3 py-1.5 text-sm disabled:opacity-40"
               onClick={() => shiftMonth(1)}
             >
               ›
@@ -245,10 +251,10 @@ export function ScheduleAdminView({
           </div>
         ) : null}
 
-        <div className="mt-5 flex flex-wrap gap-2">
+        <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
           <button
             type="button"
-            disabled={isPending}
+            disabled={isPending || readOnly}
             onClick={handleGenerateClick}
             className="rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-60"
           >
@@ -257,7 +263,7 @@ export function ScheduleAdminView({
           {overview && overview.status === 'DRAFT' ? (
             <button
               type="button"
-              disabled={isPending}
+              disabled={isPending || readOnly}
               onClick={handlePublish}
               className="rounded-lg border border-zinc-900 px-4 py-2.5 text-sm font-medium text-zinc-900 hover:bg-zinc-100 disabled:opacity-60"
             >
@@ -267,7 +273,7 @@ export function ScheduleAdminView({
           {overview?.hasPreviousVersion ? (
             <button
               type="button"
-              disabled={isPending}
+              disabled={isPending || readOnly}
               onClick={handleUndo}
               className="rounded-lg border border-zinc-300 px-4 py-2.5 text-sm text-zinc-700 hover:bg-zinc-50 disabled:opacity-60"
             >
@@ -309,14 +315,14 @@ export function ScheduleAdminView({
                           <span className="flex flex-wrap items-center gap-2">
                             <select
                               value={slot.membershipId ?? ''}
-                              disabled={isPending}
+                              disabled={isPending || readOnly}
                               onChange={(event) =>
                                 handleAssignmentChange(
                                   slot.id,
                                   event.target.value ? event.target.value : null,
                                 )
                               }
-                              className="max-w-48 rounded-lg border border-zinc-300 bg-white px-2 py-1 text-sm text-zinc-900 disabled:opacity-60"
+                              className="w-full max-w-none rounded-lg border border-zinc-300 bg-white px-2 py-1 text-sm text-zinc-900 disabled:opacity-60 sm:max-w-48"
                             >
                               <option value="">Vaga em branco</option>
                               {slot.membershipId &&
@@ -336,7 +342,7 @@ export function ScheduleAdminView({
                             {slot.membershipId ? (
                               <button
                                 type="button"
-                                disabled={isPending}
+                                disabled={isPending || readOnly}
                                 onClick={() => handleToggleMinister(slot.id)}
                                 className={`rounded-full border px-2 py-0.5 text-xs disabled:opacity-60 ${
                                   slot.isMinister

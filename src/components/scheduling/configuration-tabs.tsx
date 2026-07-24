@@ -27,13 +27,13 @@ export function ConfigurationTabs({
 
   return (
     <div>
-      <div className="flex flex-wrap gap-2">
+      <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {TABS.map((tab) => (
           <button
             key={tab.id}
             type="button"
             onClick={() => setActiveTab(tab.id)}
-            className={`rounded-full px-4 py-2 text-sm ${
+            className={`shrink-0 rounded-full px-4 py-2 text-sm ${
               activeTab === tab.id
                 ? 'bg-zinc-900 text-white'
                 : 'border border-zinc-300 text-zinc-700'

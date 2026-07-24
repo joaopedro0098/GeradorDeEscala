@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { buildMonthGrid } from '@/modules/scheduling/configuration.logic';
 import {
@@ -71,13 +71,18 @@ export function ScheduleMemberView({
   initialMonth,
   initialSelectedDate,
   overview,
+  readOnly = false,
 }: {
   initialYear: number;
   initialMonth: number;
   initialSelectedDate?: string | null;
   overview: ScheduleOverview | null;
+  readOnly?: boolean;
 }) {
   const router = useRouter();
+  const [localSelectedDate, setLocalSelectedDate] = useState<string | null>(
+    initialSelectedDate ?? null,
+  );
 
   const eventsByDate = useMemo(
     () => new Map((overview?.events ?? []).map((event) => [event.date, event])),
@@ -96,8 +101,13 @@ export function ScheduleMemberView({
     [overview?.events],
   );
 
-  const selectedDate =
-    initialSelectedDate && eventsByDate.has(initialSelectedDate) ? initialSelectedDate : null;
+  const selectedDate = readOnly
+    ? localSelectedDate && eventsByDate.has(localSelectedDate)
+      ? localSelectedDate
+      : null
+    : initialSelectedDate && eventsByDate.has(initialSelectedDate)
+      ? initialSelectedDate
+      : null;
   const selectedEvent = selectedDate ? eventsByDate.get(selectedDate) : undefined;
 
   function navigateMonth(year: number, month: number, date?: string | null) {
@@ -107,11 +117,16 @@ export function ScheduleMemberView({
   }
 
   function shiftMonth(delta: number) {
+    if (readOnly) return;
     const next = new Date(Date.UTC(initialYear, initialMonth - 1 + delta, 1));
     navigateMonth(next.getUTCFullYear(), next.getUTCMonth() + 1);
   }
 
   function selectDate(dateKey: string) {
+    if (readOnly) {
+      setLocalSelectedDate((current) => (current === dateKey ? null : dateKey));
+      return;
+    }
     if (selectedDate === dateKey) {
       navigateMonth(initialYear, initialMonth);
       return;
@@ -139,7 +154,8 @@ export function ScheduleMemberView({
           <div className="flex items-center gap-2">
             <button
               type="button"
-              className="rounded-lg border px-3 py-1.5 text-sm"
+              disabled={readOnly}
+              className="rounded-lg border px-3 py-1.5 text-sm disabled:opacity-40"
               onClick={() => shiftMonth(-1)}
             >
               ‹
@@ -147,7 +163,8 @@ export function ScheduleMemberView({
             <span className="min-w-36 text-center text-sm font-medium capitalize">{monthLabel}</span>
             <button
               type="button"
-              className="rounded-lg border px-3 py-1.5 text-sm"
+              disabled={readOnly}
+              className="rounded-lg border px-3 py-1.5 text-sm disabled:opacity-40"
               onClick={() => shiftMonth(1)}
             >
               ›
@@ -188,7 +205,7 @@ export function ScheduleMemberView({
                     type="button"
                     disabled={!isEventDay}
                     onClick={() => selectDate(dateKey)}
-                    className={`relative rounded-lg border px-2 py-3 text-sm ${
+                    className={`relative min-h-11 rounded-lg border px-1 py-2 text-sm sm:px-2 sm:py-3 ${
                       isEventDay
                         ? isSelected
                           ? 'border-zinc-900 bg-zinc-900 text-white'
@@ -226,7 +243,9 @@ export function ScheduleMemberView({
                 <button
                   type="button"
                   className="text-sm text-zinc-600 underline hover:text-zinc-900"
-                  onClick={() => navigateMonth(initialYear, initialMonth)}
+                  onClick={() =>
+                    readOnly ? setLocalSelectedDate(null) : navigateMonth(initialYear, initialMonth)
+                  }
                 >
                   Ver todos os eventos
                 </button>

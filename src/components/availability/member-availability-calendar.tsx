@@ -146,7 +146,7 @@ export function MemberAvailabilityCalendar({
                 type="button"
                 disabled={!isSelectable || isPending}
                 onClick={() => toggleDay(dateKey)}
-                className={`rounded-lg border px-2 py-3 text-sm ${
+                className={`min-h-11 rounded-lg border px-1 py-2 text-sm sm:px-2 sm:py-3 ${
                   isSelectable
                     ? isMarked
                       ? 'border-zinc-900 bg-zinc-900 text-white'

@@ -17,22 +17,22 @@ export function AppShell({
   const basePath = isAdmin ? '/admin' : '/membro';
 
   return (
-    <div className="min-h-screen bg-zinc-50">
-      <header className="border-b border-zinc-200 bg-white">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-4">
-          <div>
+    <div className="min-h-screen bg-zinc-50 pb-[max(2rem,env(safe-area-inset-bottom))]">
+      <header className="sticky top-0 z-40 border-b border-zinc-200 bg-white pt-[env(safe-area-inset-top)]">
+        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:py-4">
+          <div className="min-w-0">
             <p className="text-xs uppercase tracking-wide text-zinc-500">
               {isAdmin ? 'Área do Admin' : 'Área do Usuário'}
             </p>
-            <h1 className="text-lg font-semibold text-zinc-900">{title}</h1>
+            <h1 className="truncate text-base font-semibold text-zinc-900 sm:text-lg">{title}</h1>
           </div>
           <form action={logoutAction}>
-            <button type="submit" className="text-sm text-zinc-700 underline">
+            <button type="submit" className="shrink-0 text-sm text-zinc-700 underline">
               Sair
             </button>
           </form>
         </div>
-        <nav className="mx-auto flex max-w-5xl gap-4 overflow-x-auto px-4 pb-3 text-sm">
+        <nav className="mx-auto flex max-w-5xl gap-3 overflow-x-auto px-4 pb-3 text-sm [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <Link href={basePath} className="text-zinc-700 hover:text-zinc-900">
             Início
           </Link>
@@ -71,7 +71,7 @@ export function AppShell({
           )}
         </nav>
       </header>
-      <main className="mx-auto max-w-5xl px-4 py-8">{children}</main>
+      <main className="mx-auto w-full max-w-5xl px-4 py-6 sm:py-8">{children}</main>
     </div>
   );
 }

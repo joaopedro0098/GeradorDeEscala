@@ -10,8 +10,8 @@ export function AuthShell({
   children: ReactNode;
 }) {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 px-4 py-10">
-      <div className="w-full max-w-md rounded-2xl border border-zinc-200 bg-white p-8 shadow-sm">
+    <div className="flex min-h-screen items-center justify-center bg-zinc-50 px-4 py-8 pb-[max(2rem,env(safe-area-inset-bottom))] pt-[max(2.5rem,env(safe-area-inset-top))]">
+      <div className="w-full max-w-md rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm sm:p-8">
         <h1 className="text-2xl font-semibold text-zinc-900">{title}</h1>
         {subtitle ? <p className="mt-2 text-sm text-zinc-600">{subtitle}</p> : null}
         <div className="mt-6">{children}</div>
@@ -37,7 +37,7 @@ export function Field({
     <label className="block text-sm font-medium text-zinc-800">
       {label}
       <input
-        className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none ring-zinc-900 focus:ring-2"
+        className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2.5 text-base outline-none ring-zinc-900 focus:ring-2 sm:text-sm"
         name={name}
         type={type}
         required={required}

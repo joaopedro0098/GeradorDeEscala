@@ -1,4 +1,4 @@
-import { ScheduleAdminView } from '@/components/scheduling/schedule-admin-view';
+import { ScheduleAdminPageClient } from '@/components/scheduling/schedule-admin-page-client';
 import { getAdminSchedulePageData } from '@/modules/scheduling/actions';
 
 type PageProps = {
@@ -14,10 +14,11 @@ export default async function AdminSchedulePage({ searchParams }: PageProps) {
   const data = await getAdminSchedulePageData(year, month);
 
   return (
-    <ScheduleAdminView
+    <ScheduleAdminPageClient
+      organizationId={data.session.organizationId}
       initialYear={year}
       initialMonth={month}
-      overview={data.overview}
+      serverOverview={data.overview}
       shortagePreview={data.shortagePreview}
       assignmentCandidates={data.assignmentCandidates}
     />
