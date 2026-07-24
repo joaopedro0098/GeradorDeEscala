@@ -33,8 +33,10 @@ Sistema de geração automática de escalas para organizações (primeira aplica
 
    No Supabase, em **Project Settings > Database > Connection string**:
 
-   - `DATABASE_URL` → **Transaction pooler** (porta 6543, `?pgbouncer=true`)
-   - `DIRECT_URL` → **Direct connection** (porta 5432) — usada pelo Prisma Migrate
+   - `DATABASE_URL` → **Transaction pooler** (porta 6543, `?pgbouncer=true`) — usada pelo app em runtime (`src/lib/prisma.ts`)
+   - `DIRECT_URL` → **Direct connection** (porta 5432) — usada pelo Prisma CLI/migrations via `prisma.config.ts`
+
+   > No Prisma 7, `prisma.config.ts` aceita apenas `url` (não existe `directUrl` no config). Por isso migrations leem `DIRECT_URL` como `url` do config.
 
 3. Gere o Prisma Client:
 
@@ -45,7 +47,8 @@ Sistema de geração automática de escalas para organizações (primeira aplica
 4. Aplique as migrações no banco:
 
    ```bash
-   npx prisma migrate deploy
+   npm run db:check-env
+   npm run db:migrate
    ```
 
 5. (Opcional) Popule dados de exemplo:
