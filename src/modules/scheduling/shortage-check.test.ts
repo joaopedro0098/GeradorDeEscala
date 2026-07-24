@@ -131,6 +131,23 @@ describe('computeShortage — STRICT member groups', () => {
   });
 });
 
+describe('computeShortage — manual pins (keep_manual)', () => {
+  it('subtracts pinned manual assignments from the quantity needed', () => {
+    const requirements: SolverRequirementInput[] = [
+      { eventId: 'e1', roleId: 'vocal', quantity: 1 },
+    ];
+    const members: SolverMemberInput[] = [member('a', ['vocal'], ['e1'])];
+
+    const shortages = computeShortage({
+      requirements,
+      members,
+      pinnedSlots: [{ eventId: 'e1', roleId: 'vocal', slotIndex: 0, membershipId: 'a' }],
+    });
+
+    expect(shortages).toEqual([]);
+  });
+});
+
 describe('hasShortage', () => {
   it('returns false for an empty list', () => {
     expect(hasShortage([])).toBe(false);

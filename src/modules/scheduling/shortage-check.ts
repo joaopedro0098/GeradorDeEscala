@@ -4,6 +4,7 @@ import type {
   SolverGroupInput,
   SolverIntervalRuleInput,
   SolverMemberInput,
+  SolverPinnedSlotInput,
   SolverRequirementInput,
 } from './solver.types';
 
@@ -37,6 +38,7 @@ export function computeShortage(input: {
   events?: SolverEventInput[];
   intervalRules?: SolverIntervalRuleInput[];
   groups?: SolverGroupInput[];
+  pinnedSlots?: SolverPinnedSlotInput[];
 }): ShortageEntry[] {
   const groups = input.groups ?? [];
   let pins: ReturnType<typeof resolveGroupPlacements>['pins'] = [];
@@ -57,9 +59,26 @@ export function computeShortage(input: {
     excludedMembershipIdsByEvent = placement.excludedMembershipIdsByEvent;
   }
 
+  const manualPinVariableIds = new Set(
+    (input.pinnedSlots ?? []).map((pin) => `${pin.eventId}::${pin.roleId}::${pin.slotIndex}`),
+  );
+  pins = pins.filter(
+    (pin) => !manualPinVariableIds.has(`${pin.eventId}::${pin.roleId}::${pin.slotIndex}`),
+  );
+
   const pinnedCountByRequirement = new Map<string, number>();
   const pinnedMembershipIdsByEvent = new Map<string, Set<string>>();
   for (const pin of pins) {
+    if (!pin.membershipId) continue;
+    const requirementKey = `${pin.eventId}::${pin.roleId}`;
+    pinnedCountByRequirement.set(requirementKey, (pinnedCountByRequirement.get(requirementKey) ?? 0) + 1);
+
+    const set = pinnedMembershipIdsByEvent.get(pin.eventId) ?? new Set<string>();
+    set.add(pin.membershipId);
+    pinnedMembershipIdsByEvent.set(pin.eventId, set);
+  }
+
+  for (const pin of input.pinnedSlots ?? []) {
     if (!pin.membershipId) continue;
     const requirementKey = `${pin.eventId}::${pin.roleId}`;
     pinnedCountByRequirement.set(requirementKey, (pinnedCountByRequirement.get(requirementKey) ?? 0) + 1);

@@ -5,11 +5,13 @@ import { useRouter } from 'next/navigation';
 import {
   generateScheduleAction,
   publishScheduleAction,
+  setScheduleSlotAssignmentAction,
   setScheduleSlotMinisterAction,
   undoLastGenerationAction,
 } from '@/modules/scheduling/actions';
 import {
   GENERATION_STATUS_LABELS,
+  type ScheduleAssignmentCandidate,
   type ScheduleOverview,
   type ShortageEntryView,
 } from '@/modules/scheduling/schedule.types';
@@ -24,20 +26,24 @@ function formatDate(dateKey: string): string {
   }).format(new Date(Date.UTC(year, month - 1, day)));
 }
 
+type DialogKind = 'shortage' | 'manual' | null;
+
 export function ScheduleAdminView({
   initialYear,
   initialMonth,
   overview,
   shortagePreview,
+  assignmentCandidates,
 }: {
   initialYear: number;
   initialMonth: number;
   overview: ScheduleOverview | null;
   shortagePreview: ShortageEntryView[];
+  assignmentCandidates: ScheduleAssignmentCandidate[];
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [dialog, setDialog] = useState<DialogKind>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -46,12 +52,19 @@ export function ScheduleAdminView({
     router.push(`/admin/escala?year=${next.getUTCFullYear()}&month=${next.getUTCMonth() + 1}`);
   }
 
-  function runGenerate() {
-    setConfirmOpen(false);
+  function eligibleForSlot(eventId: string, roleId: string): ScheduleAssignmentCandidate[] {
+    return assignmentCandidates.filter(
+      (candidate) =>
+        candidate.roleIds.includes(roleId) && candidate.availableEventIds.includes(eventId),
+    );
+  }
+
+  function runGenerate(keepManual: boolean) {
+    setDialog(null);
     setError(null);
     setFeedback(null);
     startTransition(async () => {
-      const result = await generateScheduleAction(initialYear, initialMonth);
+      const result = await generateScheduleAction(initialYear, initialMonth, keepManual);
       if (result.error) {
         setError(result.error);
         return;
@@ -61,14 +74,26 @@ export function ScheduleAdminView({
     });
   }
 
+  function proceedAfterShortageConfirm() {
+    if (overview?.hasManualSlots) {
+      setDialog('manual');
+      return;
+    }
+    runGenerate(false);
+  }
+
   function handleGenerateClick() {
     setError(null);
     setFeedback(null);
     if (shortagePreview.length > 0) {
-      setConfirmOpen(true);
+      setDialog('shortage');
       return;
     }
-    runGenerate();
+    if (overview?.hasManualSlots) {
+      setDialog('manual');
+      return;
+    }
+    runGenerate(false);
   }
 
   function handlePublish() {
@@ -81,6 +106,23 @@ export function ScheduleAdminView({
         return;
       }
       setFeedback(result.success ?? 'Escala publicada.');
+      router.refresh();
+    });
+  }
+
+  function handleAssignmentChange(slotId: string, membershipId: string | null) {
+    setError(null);
+    startTransition(async () => {
+      const result = await setScheduleSlotAssignmentAction(
+        slotId,
+        membershipId,
+        initialYear,
+        initialMonth,
+      );
+      if (result.error) {
+        setError(result.error);
+        return;
+      }
       router.refresh();
     });
   }
@@ -249,37 +291,66 @@ export function ScheduleAdminView({
                     {formatDate(event.date)} · {DAY_OF_WEEK_LABELS[event.dayOfWeek]}
                   </h3>
                   <ul className="mt-3 divide-y divide-zinc-100">
-                    {event.slots.map((slot) => (
-                      <li
-                        key={slot.id}
-                        className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"
-                      >
-                        <span className="text-zinc-600">{slot.roleName}</span>
-                        <span className="flex items-center gap-2">
-                          <span
-                            className={
-                              slot.membershipId ? 'font-medium text-zinc-900' : 'italic text-zinc-400'
-                            }
-                          >
-                            {slot.memberName ?? 'Vaga em branco'}
+                    {event.slots.map((slot) => {
+                      const eligible = eligibleForSlot(event.eventId, slot.roleId);
+                      return (
+                        <li
+                          key={slot.id}
+                          className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"
+                        >
+                          <span className="flex items-center gap-2 text-zinc-600">
+                            {slot.roleName}
+                            {slot.isManual ? (
+                              <span className="rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-xs text-sky-800">
+                                Manual
+                              </span>
+                            ) : null}
                           </span>
-                          {slot.membershipId ? (
-                            <button
-                              type="button"
+                          <span className="flex flex-wrap items-center gap-2">
+                            <select
+                              value={slot.membershipId ?? ''}
                               disabled={isPending}
-                              onClick={() => handleToggleMinister(slot.id)}
-                              className={`rounded-full border px-2 py-0.5 text-xs disabled:opacity-60 ${
-                                slot.isMinister
-                                  ? 'border-amber-400 bg-amber-100 text-amber-900'
-                                  : 'border-zinc-300 text-zinc-500 hover:bg-zinc-100'
-                              }`}
+                              onChange={(event) =>
+                                handleAssignmentChange(
+                                  slot.id,
+                                  event.target.value ? event.target.value : null,
+                                )
+                              }
+                              className="max-w-48 rounded-lg border border-zinc-300 bg-white px-2 py-1 text-sm text-zinc-900 disabled:opacity-60"
                             >
-                              {slot.isMinister ? '★ Ministro' : 'Marcar ministro'}
-                            </button>
-                          ) : null}
-                        </span>
-                      </li>
-                    ))}
+                              <option value="">Vaga em branco</option>
+                              {slot.membershipId &&
+                              !eligible.some(
+                                (candidate) => candidate.membershipId === slot.membershipId,
+                              ) ? (
+                                <option value={slot.membershipId}>
+                                  {slot.memberName ?? 'Membro atual'}
+                                </option>
+                              ) : null}
+                              {eligible.map((candidate) => (
+                                <option key={candidate.membershipId} value={candidate.membershipId}>
+                                  {candidate.memberName}
+                                </option>
+                              ))}
+                            </select>
+                            {slot.membershipId ? (
+                              <button
+                                type="button"
+                                disabled={isPending}
+                                onClick={() => handleToggleMinister(slot.id)}
+                                className={`rounded-full border px-2 py-0.5 text-xs disabled:opacity-60 ${
+                                  slot.isMinister
+                                    ? 'border-amber-400 bg-amber-100 text-amber-900'
+                                    : 'border-zinc-300 text-zinc-500 hover:bg-zinc-100'
+                                }`}
+                              >
+                                {slot.isMinister ? '★ Ministro' : 'Marcar ministro'}
+                              </button>
+                            ) : null}
+                          </span>
+                        </li>
+                      );
+                    })}
                   </ul>
                 </div>
               ))
@@ -316,7 +387,7 @@ export function ScheduleAdminView({
         </p>
       )}
 
-      {confirmOpen ? (
+      {dialog === 'shortage' ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
           <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
             <h3 className="text-lg font-semibold text-zinc-900">Vagas sem cobertura suficiente</h3>
@@ -328,16 +399,51 @@ export function ScheduleAdminView({
               <button
                 type="button"
                 className="flex-1 rounded-lg border px-4 py-2 text-sm"
-                onClick={() => setConfirmOpen(false)}
+                onClick={() => setDialog(null)}
               >
                 Cancelar
               </button>
               <button
                 type="button"
                 className="flex-1 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white"
-                onClick={runGenerate}
+                onClick={proceedAfterShortageConfirm}
               >
                 Gerar mesmo assim
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {dialog === 'manual' ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+            <h3 className="text-lg font-semibold text-zinc-900">Alterações manuais detectadas</h3>
+            <p className="mt-3 text-sm leading-6 text-zinc-700">
+              Você realizou alterações manuais nesta escala. Deseja manter as alterações manuais ou
+              regenerar 100%?
+            </p>
+            <div className="mt-6 flex flex-col gap-2 sm:flex-row">
+              <button
+                type="button"
+                className="flex-1 rounded-lg border px-4 py-2 text-sm"
+                onClick={() => setDialog(null)}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="flex-1 rounded-lg border border-zinc-900 px-4 py-2 text-sm font-medium text-zinc-900"
+                onClick={() => runGenerate(true)}
+              >
+                Manter manuais
+              </button>
+              <button
+                type="button"
+                className="flex-1 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white"
+                onClick={() => runGenerate(false)}
+              >
+                Regenerar 100%
               </button>
             </div>
           </div>

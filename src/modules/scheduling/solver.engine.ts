@@ -94,9 +94,28 @@ export function solveSchedule(input: SolverInput): SolverResult {
     intervalRules: input.intervalRules,
     groups: input.groups ?? [],
   });
-  const pinnedVariableIds = new Set(
-    groupPlacement.pins.map((pin) => variableId(pin.eventId, pin.roleId, pin.slotIndex)),
+
+  const manualPins: SolverAssignedSlot[] = (input.pinnedSlots ?? []).map((pin) => ({
+    eventId: pin.eventId,
+    roleId: pin.roleId,
+    slotIndex: pin.slotIndex,
+    membershipId: pin.membershipId,
+    filledByPriorityOverride: false,
+    filledByRoleStacking: false,
+    filledByGroupPin: false,
+    filledByManualPin: true,
+  }));
+  const manualPinVariableIds = new Set(
+    manualPins.map((pin) => variableId(pin.eventId, pin.roleId, pin.slotIndex)),
   );
+
+  const groupPins = groupPlacement.pins.filter(
+    (pin) => !manualPinVariableIds.has(variableId(pin.eventId, pin.roleId, pin.slotIndex)),
+  );
+  const pinnedVariableIds = new Set([
+    ...groupPins.map((pin) => variableId(pin.eventId, pin.roleId, pin.slotIndex)),
+    ...manualPinVariableIds,
+  ]);
 
   const flexibleGroupByMember = new Map<string, string>();
   for (const group of input.groups ?? []) {
@@ -396,10 +415,10 @@ export function solveSchedule(input: SolverInput): SolverResult {
     }
   }
 
-  // Seed the shared state with STRICT group pins so the general search sees
-  // them as already-occupied ground truth (equity counts, interval history,
-  // and event occupancy all reflect the pinned assignments).
-  for (const pin of groupPlacement.pins) {
+  // Seed the shared state with STRICT group pins and manual pins so the general
+  // search sees them as already-occupied ground truth (equity counts, interval
+  // history, and event occupancy all reflect the pinned assignments).
+  for (const pin of [...groupPins, ...manualPins]) {
     if (!pin.membershipId) continue;
     const key = scopedKey(pin.membershipId, pin.roleId);
     periodCounts.set(key, (periodCounts.get(key) ?? 0) + 1);
@@ -448,9 +467,10 @@ export function solveSchedule(input: SolverInput): SolverResult {
     filledByPriorityOverride: resolvedOverrides.get(variable.id) ?? false,
     filledByRoleStacking: resolvedStacks.get(variable.id) ?? false,
     filledByGroupPin: false,
+    filledByManualPin: false,
   }));
 
-  const slots: SolverAssignedSlot[] = [...groupPlacement.pins, ...searchedSlots];
+  const slots: SolverAssignedSlot[] = [...groupPins, ...manualPins, ...searchedSlots];
 
   const unfilledSlots = slots
     .filter((slot) => slot.membershipId === null)

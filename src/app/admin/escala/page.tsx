@@ -19,6 +19,7 @@ export default async function AdminSchedulePage({ searchParams }: PageProps) {
       initialMonth={month}
       overview={data.overview}
       shortagePreview={data.shortagePreview}
+      assignmentCandidates={data.assignmentCandidates}
     />
   );
 }

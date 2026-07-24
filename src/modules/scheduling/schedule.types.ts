@@ -26,6 +26,13 @@ export type MemberAssignmentCount = {
   byRole: Array<{ roleId: string; roleName: string; count: number }>;
 };
 
+export type ScheduleAssignmentCandidate = {
+  membershipId: string;
+  memberName: string;
+  availableEventIds: string[];
+  roleIds: string[];
+};
+
 export type ScheduleOverview = {
   scheduleId: string;
   year: number;
@@ -36,6 +43,7 @@ export type ScheduleOverview = {
   publishedAt: string | null;
   hasPendingDraft: boolean;
   hasPreviousVersion: boolean;
+  hasManualSlots: boolean;
   memberVisiblePublishedAt: string | null;
   events: ScheduleEventView[];
   memberCounts: MemberAssignmentCount[];

@@ -65,6 +65,14 @@ export type SolverGroupInput = {
   membershipIds: string[];
 };
 
+/** Admin-locked slot preserved during partial regeneration (spec 5.4 keep_manual). */
+export type SolverPinnedSlotInput = {
+  eventId: string;
+  roleId: string;
+  slotIndex: number;
+  membershipId: string | null;
+};
+
 export type SolverInput = {
   events: SolverEventInput[];
   requirements: SolverRequirementInput[];
@@ -73,6 +81,8 @@ export type SolverInput = {
   priorityRoles: SolverPriorityRoleInput[];
   priorMonthAssignments?: SolverPriorMonthAssignmentInput[];
   groups?: SolverGroupInput[];
+  /** Manual assignments the solver must not change (keep_manual). */
+  pinnedSlots?: SolverPinnedSlotInput[];
   /** Anytime search budget in milliseconds. Defaults to 8000ms. */
   timeoutMs?: number;
   /** Injectable clock, primarily for deterministic tests. */
@@ -90,6 +100,8 @@ export type SolverAssignedSlot = {
   filledByRoleStacking: boolean;
   /** True when this slot was pre-assigned by a STRICT member group match, before the general search ran. */
   filledByGroupPin: boolean;
+  /** True when this slot was locked by an admin manual assignment (spec 5.4 keep_manual). */
+  filledByManualPin: boolean;
 };
 
 export type SolverStatus = 'COMPLETE' | 'INCOMPLETE_BY_SHORTAGE' | 'INCOMPLETE_BY_TIMEOUT';

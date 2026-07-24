@@ -22,11 +22,13 @@ import {
 } from '@/modules/scheduling/configuration.service';
 import {
   generateSchedule,
+  getAssignmentCandidatesForAdmin,
   getPreGenerationShortagePreview,
   getScheduleOverviewForAdmin,
   getScheduleOverviewForMember,
   publishSchedule,
   ScheduleServiceError,
+  setScheduleSlotAssignment,
   setScheduleSlotMinister,
   undoLastGeneration,
 } from '@/modules/scheduling/schedule.service';
@@ -275,12 +277,13 @@ export async function getAdminSchedulePageData(year: number, month: number) {
     redirect('/admin');
   }
 
-  const [overview, shortagePreview] = await Promise.all([
+  const [overview, shortagePreview, assignmentCandidates] = await Promise.all([
     getScheduleOverviewForAdmin(session.organizationId, year, month),
     getPreGenerationShortagePreview(session.organizationId, year, month),
+    getAssignmentCandidatesForAdmin(session.organizationId, year, month),
   ]);
 
-  return { session, overview, shortagePreview, year, month };
+  return { session, overview, shortagePreview, assignmentCandidates, year, month };
 }
 
 export async function getMemberSchedulePageData(year: number, month: number) {
@@ -292,10 +295,11 @@ export async function getMemberSchedulePageData(year: number, month: number) {
 export async function generateScheduleAction(
   year: number,
   month: number,
+  keepManual = false,
 ): Promise<{ error?: string; success?: string; status?: SolverStatus; blankCount?: number }> {
   try {
     const session = await requireAdminSession();
-    const result = await generateSchedule(session.organizationId, year, month);
+    const result = await generateSchedule(session.organizationId, year, month, { keepManual });
     revalidateSchedule(year, month);
     return { success: 'Escala gerada.', status: result.status, blankCount: result.blankCount };
   } catch (error) {
@@ -325,6 +329,22 @@ export async function setScheduleSlotMinisterAction(
   try {
     const session = await requireAdminSession();
     await setScheduleSlotMinister(session.organizationId, scheduleSlotId);
+    revalidateSchedule(year, month);
+    return {};
+  } catch (error) {
+    return mapError(error);
+  }
+}
+
+export async function setScheduleSlotAssignmentAction(
+  scheduleSlotId: string,
+  membershipId: string | null,
+  year: number,
+  month: number,
+): Promise<{ error?: string }> {
+  try {
+    const session = await requireAdminSession();
+    await setScheduleSlotAssignment(session.organizationId, scheduleSlotId, membershipId);
     revalidateSchedule(year, month);
     return {};
   } catch (error) {

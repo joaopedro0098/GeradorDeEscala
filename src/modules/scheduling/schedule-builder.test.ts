@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  buildManualPinnedSlots,
   buildPriorMonthAssignments,
   buildSolverGroups,
   buildSolverInput,
@@ -117,5 +118,38 @@ describe('buildSolverInput', () => {
     ]);
     expect(input.groups).toEqual([]);
     expect(input.timeoutMs).toBe(5000);
+  });
+});
+
+describe('buildManualPinnedSlots', () => {
+  it('maps only isManual slots into solver pins', () => {
+    const slots = [
+      {
+        eventId: 'e1',
+        roleId: 'vocal',
+        slotIndex: 0,
+        membershipId: 'm1',
+        isManual: true,
+      },
+      {
+        eventId: 'e2',
+        roleId: 'drums',
+        slotIndex: 0,
+        membershipId: 'm2',
+        isManual: false,
+      },
+      {
+        eventId: 'e3',
+        roleId: 'guitar',
+        slotIndex: 1,
+        membershipId: null,
+        isManual: true,
+      },
+    ];
+
+    expect(buildManualPinnedSlots(slots)).toEqual([
+      { eventId: 'e1', roleId: 'vocal', slotIndex: 0, membershipId: 'm1' },
+      { eventId: 'e3', roleId: 'guitar', slotIndex: 1, membershipId: null },
+    ]);
   });
 });

@@ -752,3 +752,62 @@ describe('solveSchedule — member groups (STRICT)', () => {
     expect(slotFor(result, 'e1', 'vocal')?.filledByGroupPin).toBe(true);
   });
 });
+
+describe('solveSchedule — manual pins (keep_manual, spec 5.4)', () => {
+  it('preserves pinned manual assignments and recalculates the rest', () => {
+    const input: SolverInput = {
+      events: [event('e1', '2026-08-02'), event('e2', '2026-08-09')],
+      requirements: [
+        { eventId: 'e1', roleId: 'vocal', quantity: 1 },
+        { eventId: 'e2', roleId: 'vocal', quantity: 1 },
+      ],
+      members: [member('m1', ['vocal'], ['e1', 'e2']), member('m2', ['vocal'], ['e1', 'e2'])],
+      intervalRules: [],
+      priorityRoles: [],
+      pinnedSlots: [{ eventId: 'e1', roleId: 'vocal', slotIndex: 0, membershipId: 'm2' }],
+    };
+
+    const result = solveSchedule(input);
+
+    expect(slotFor(result, 'e1', 'vocal')?.membershipId).toBe('m2');
+    expect(slotFor(result, 'e1', 'vocal')?.filledByManualPin).toBe(true);
+    expect(slotFor(result, 'e2', 'vocal')?.membershipId).toBe('m1');
+    expect(result.status).toBe('COMPLETE');
+  });
+
+  it('seeds period equity from manual pins when filling remaining slots', () => {
+    const input: SolverInput = {
+      events: [event('e1', '2026-08-02'), event('e2', '2026-08-09')],
+      requirements: [
+        { eventId: 'e1', roleId: 'vocal', quantity: 1 },
+        { eventId: 'e2', roleId: 'vocal', quantity: 1 },
+      ],
+      members: [member('m1', ['vocal'], ['e1', 'e2']), member('m2', ['vocal'], ['e1', 'e2'])],
+      intervalRules: [],
+      priorityRoles: [],
+      pinnedSlots: [{ eventId: 'e1', roleId: 'vocal', slotIndex: 0, membershipId: 'm1' }],
+    };
+
+    const result = solveSchedule(input);
+
+    expect(slotFor(result, 'e1', 'vocal')?.membershipId).toBe('m1');
+    expect(slotFor(result, 'e2', 'vocal')?.membershipId).toBe('m2');
+  });
+
+  it('pins manual blank slots and does not fill them', () => {
+    const input: SolverInput = {
+      events: [event('e1', '2026-08-02')],
+      requirements: [{ eventId: 'e1', roleId: 'vocal', quantity: 1 }],
+      members: [member('m1', ['vocal'], ['e1'])],
+      intervalRules: [],
+      priorityRoles: [],
+      pinnedSlots: [{ eventId: 'e1', roleId: 'vocal', slotIndex: 0, membershipId: null }],
+    };
+
+    const result = solveSchedule(input);
+
+    expect(slotFor(result, 'e1', 'vocal')?.membershipId).toBeNull();
+    expect(slotFor(result, 'e1', 'vocal')?.filledByManualPin).toBe(true);
+    expect(result.status).toBe('INCOMPLETE_BY_SHORTAGE');
+  });
+});

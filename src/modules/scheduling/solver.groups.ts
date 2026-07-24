@@ -120,6 +120,7 @@ export function resolveGroupPlacements(input: {
           filledByPriorityOverride: false,
           filledByRoleStacking: false,
           filledByGroupPin: true,
+          filledByManualPin: false,
         });
 
         const history = historyByMember.get(membershipId) ?? [];

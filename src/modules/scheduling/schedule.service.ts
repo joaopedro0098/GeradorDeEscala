@@ -6,12 +6,17 @@ import type {
 import { prisma } from '@/lib/prisma';
 import { getDayOfWeekFromDateKey } from './configuration.logic';
 import {
+  buildManualPinnedSlots,
   buildSolverGroups,
   buildSolverInput,
   expandRequirementsForEvents,
 } from './schedule-builder';
 import { applyMinisterSelection, countAssignmentsByMember, groupSlotsByEvent } from './schedule.logic';
-import type { ScheduleOverview, ShortageEntryView } from './schedule.types';
+import type {
+  ScheduleAssignmentCandidate,
+  ScheduleOverview,
+  ShortageEntryView,
+} from './schedule.types';
 import {
   getMemberVisibleSlotSource,
   isMemberScheduleVisible,
@@ -82,6 +87,10 @@ function toWorkingSlot(slot: {
     isManual: slot.isManual,
     isMinister: slot.isMinister,
   };
+}
+
+function workingSlotKey(slot: { eventId: string; roleId: string; slotIndex: number }): string {
+  return `${slot.eventId}::${slot.roleId}::${slot.slotIndex}`;
 }
 
 async function savePreviousVersion(
@@ -375,8 +384,18 @@ export async function generateSchedule(
   organizationId: string,
   year: number,
   month: number,
+  options?: { keepManual?: boolean },
 ): Promise<{ scheduleId: string; status: SolverStatus; blankCount: number }> {
+  const existing = await prisma.schedule.findUnique({
+    where: { organizationId_year_month: { organizationId, year, month } },
+    include: { slots: true },
+  });
+
   const context = await buildSchedulingContext(organizationId, year, month);
+  const manualPinnedSlots =
+    options?.keepManual && existing
+      ? buildManualPinnedSlots(existing.slots.map(toWorkingSlot))
+      : undefined;
 
   const solverInput = buildSolverInput({
     events: context.events,
@@ -386,23 +405,36 @@ export async function generateSchedule(
     priorityRoles: context.priorityRoles,
     priorMonthSlots: context.priorMonthSlots,
     groups: context.groups,
+    pinnedSlots: manualPinnedSlots,
   });
 
   const result = solveSchedule(solverInput);
 
-  const existing = await prisma.schedule.findUnique({
-    where: { organizationId_year_month: { organizationId, year, month } },
-    include: { slots: true },
-  });
+  const manualKeys = new Set(
+    options?.keepManual && existing
+      ? existing.slots.filter((slot) => slot.isManual).map((slot) => workingSlotKey(slot))
+      : [],
+  );
+  const ministerByManualKey = new Map(
+    options?.keepManual && existing
+      ? existing.slots
+          .filter((slot) => slot.isManual)
+          .map((slot) => [workingSlotKey(slot), slot.isMinister] as const)
+      : [],
+  );
 
-  const solverSlots: WorkingSlot[] = result.slots.map((slot) => ({
-    eventId: slot.eventId,
-    roleId: slot.roleId,
-    slotIndex: slot.slotIndex,
-    membershipId: slot.membershipId,
-    isManual: false,
-    isMinister: false,
-  }));
+  const solverSlots: WorkingSlot[] = result.slots.map((slot) => {
+    const key = workingSlotKey(slot);
+    const wasManual = manualKeys.has(key);
+    return {
+      eventId: slot.eventId,
+      roleId: slot.roleId,
+      slotIndex: slot.slotIndex,
+      membershipId: slot.membershipId,
+      isManual: wasManual,
+      isMinister: wasManual ? (ministerByManualKey.get(key) ?? false) : false,
+    };
+  });
 
   const scheduleId = await prisma.$transaction(async (tx) => {
     const schedule = await tx.schedule.upsert({
@@ -610,6 +642,7 @@ async function loadScheduleOverview(
         : null,
     hasPendingDraft: schedule.hasPendingDraft,
     hasPreviousVersion: Boolean(schedule.previousVersion),
+    hasManualSlots: schedule.slots.some((slot) => slot.isManual),
     memberVisiblePublishedAt,
     events,
     memberCounts: options.includeMemberCounts
@@ -745,6 +778,80 @@ export async function undoLastGeneration(
         hasPublishedGaps: schedule.previousVersion!.hasPublishedGaps,
       },
     });
+  });
+}
+
+export async function getAssignmentCandidatesForAdmin(
+  organizationId: string,
+  year: number,
+  month: number,
+): Promise<ScheduleAssignmentCandidate[]> {
+  const events = await loadEventsForMonth(organizationId, year, month);
+  const eventIds = events.map((event) => event.id);
+
+  const memberships = await prisma.membership.findMany({
+    where: { organizationId, status: 'ACTIVE' },
+    include: {
+      user: { select: { name: true } },
+      rolePreferences: { select: { roleId: true } },
+      availabilities: {
+        where: { eventId: { in: eventIds } },
+        select: { eventId: true },
+      },
+    },
+    orderBy: { user: { name: 'asc' } },
+  });
+
+  return memberships.map((membership) => ({
+    membershipId: membership.id,
+    memberName: membership.user.name,
+    availableEventIds: membership.availabilities.map((availability) => availability.eventId),
+    roleIds: membership.rolePreferences.map((preference) => preference.roleId),
+  }));
+}
+
+export async function setScheduleSlotAssignment(
+  organizationId: string,
+  scheduleSlotId: string,
+  membershipId: string | null,
+): Promise<void> {
+  const slot = await prisma.scheduleSlot.findFirst({
+    where: { id: scheduleSlotId, schedule: { organizationId } },
+  });
+
+  if (!slot) {
+    throw new ScheduleServiceError('Vaga não encontrada.');
+  }
+
+  if (membershipId) {
+    const membership = await prisma.membership.findFirst({
+      where: { id: membershipId, organizationId, status: 'ACTIVE' },
+      include: {
+        rolePreferences: { where: { roleId: slot.roleId }, select: { roleId: true } },
+        availabilities: { where: { eventId: slot.eventId }, select: { eventId: true } },
+      },
+    });
+
+    if (!membership) {
+      throw new ScheduleServiceError('Membro não encontrado.');
+    }
+    if (membership.rolePreferences.length === 0) {
+      throw new ScheduleServiceError('Este membro não está cadastrado para esta função.');
+    }
+    if (membership.availabilities.length === 0) {
+      throw new ScheduleServiceError('Este membro não marcou disponibilidade para este culto.');
+    }
+  }
+
+  const keepMinister = Boolean(membershipId && slot.membershipId === membershipId && slot.isMinister);
+
+  await prisma.scheduleSlot.update({
+    where: { id: slot.id },
+    data: {
+      membershipId,
+      isManual: true,
+      isMinister: keepMinister,
+    },
   });
 }
 

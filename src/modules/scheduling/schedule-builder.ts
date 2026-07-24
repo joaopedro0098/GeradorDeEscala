@@ -6,6 +6,7 @@ import type {
   SolverInput,
   SolverIntervalRuleInput,
   SolverMemberInput,
+  SolverPinnedSlotInput,
   SolverPriorityRoleInput,
   SolverPriorMonthAssignmentInput,
   SolverRequirementInput,
@@ -85,6 +86,29 @@ export function buildSolverGroups(
     }));
 }
 
+/**
+ * Maps persisted manual slots into solver pins for keep_manual regeneration.
+ * Blank manual slots are pinned too — the solver must not fill them.
+ */
+export function buildManualPinnedSlots(
+  slots: Array<{
+    eventId: string;
+    roleId: string;
+    slotIndex: number;
+    membershipId: string | null;
+    isManual: boolean;
+  }>,
+): SolverPinnedSlotInput[] {
+  return slots
+    .filter((slot) => slot.isManual)
+    .map((slot) => ({
+      eventId: slot.eventId,
+      roleId: slot.roleId,
+      slotIndex: slot.slotIndex,
+      membershipId: slot.membershipId,
+    }));
+}
+
 export type BuildSolverInputParams = {
   events: SolverEventInput[];
   dayRequirements: Array<{ dayOfWeek: DayOfWeek; roleId: string; quantity: number }>;
@@ -93,6 +117,7 @@ export type BuildSolverInputParams = {
   priorityRoles: SolverPriorityRoleInput[];
   priorMonthSlots: Array<{ membershipId: string | null; roleId: string }>;
   groups: Array<{ id: string; mode: SolverGroupMode; membershipIds: string[] }>;
+  pinnedSlots?: SolverPinnedSlotInput[];
   timeoutMs?: number;
   now?: () => number;
 };
@@ -110,6 +135,7 @@ export function buildSolverInput(params: BuildSolverInputParams): SolverInput {
     priorityRoles: params.priorityRoles,
     priorMonthAssignments: buildPriorMonthAssignments(params.priorMonthSlots),
     groups: buildSolverGroups(params.groups),
+    pinnedSlots: params.pinnedSlots,
     timeoutMs: params.timeoutMs,
     now: params.now,
   };
