@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolvePostLogin } from '@/modules/auth/auth-logic';
+import { resolveDefaultContext } from '@/modules/auth/auth-logic';
 import type { MembershipSummary } from '@/modules/auth/types';
 
 const baseMembership = (
@@ -13,30 +13,21 @@ const baseMembership = (
   ...overrides,
 });
 
-describe('resolvePostLogin', () => {
-  it('redirects admin without admin memberships to create organization flow', () => {
-    const result = resolvePostLogin(
-      'user-1',
-      [baseMembership({ id: 'm1', organizationId: 'o1' })],
-      'admin',
-    );
+describe('resolveDefaultContext', () => {
+  it('returns no_active_organization when there are no ACTIVE memberships', () => {
+    expect(resolveDefaultContext('user-1', [])).toEqual({ type: 'no_active_organization' });
 
-    expect(result).toEqual({ type: 'create_organization' });
+    expect(
+      resolveDefaultContext('user-1', [
+        baseMembership({ id: 'm1', organizationId: 'o1', status: 'PENDING' }),
+      ]),
+    ).toEqual({ type: 'no_active_organization' });
   });
 
-  it('creates a session when only one eligible membership exists', () => {
-    const result = resolvePostLogin(
-      'user-1',
-      [
-        baseMembership({
-          id: 'm1',
-          organizationId: 'o1',
-          isAdmin: true,
-          isPrimaryAdmin: true,
-        }),
-      ],
-      'admin',
-    );
+  it('opens as user when the only ACTIVE membership is non-admin', () => {
+    const result = resolveDefaultContext('user-1', [
+      baseMembership({ id: 'm1', organizationId: 'o1', organizationName: 'Louvor' }),
+    ]);
 
     expect(result.type).toBe('session');
     if (result.type === 'session') {
@@ -44,36 +35,69 @@ describe('resolvePostLogin', () => {
         userId: 'user-1',
         membershipId: 'm1',
         organizationId: 'o1',
-        loginMode: 'admin',
-        isAdmin: true,
-        isPrimaryAdmin: true,
+        organizationName: 'Louvor',
+        loginMode: 'user',
+        isAdmin: false,
       });
     }
   });
 
-  it('asks for organization selection when multiple memberships match', () => {
-    const result = resolvePostLogin(
-      'user-1',
-      [
-        baseMembership({ id: 'm1', organizationId: 'o1' }),
-        baseMembership({ id: 'm2', organizationId: 'o2' }),
-      ],
-      'user',
-    );
+  it('opens as admin when the only ACTIVE membership is admin', () => {
+    const result = resolveDefaultContext('user-1', [
+      baseMembership({
+        id: 'm1',
+        organizationId: 'o1',
+        isAdmin: true,
+        isPrimaryAdmin: true,
+      }),
+    ]);
 
-    expect(result.type).toBe('select_organization');
-    if (result.type === 'select_organization') {
-      expect(result.memberships).toHaveLength(2);
+    expect(result.type).toBe('session');
+    if (result.type === 'session') {
+      expect(result.payload.loginMode).toBe('admin');
+      expect(result.payload.isPrimaryAdmin).toBe(true);
     }
   });
 
-  it('throws when user mode has no active memberships', () => {
-    expect(() =>
-      resolvePostLogin(
-        'user-1',
-        [baseMembership({ id: 'm1', organizationId: 'o1', status: 'PENDING' })],
-        'user',
-      ),
-    ).toThrow(/organização ativa/i);
+  it('prefers primary admin over other admin over oldest membership', () => {
+    const result = resolveDefaultContext('user-1', [
+      baseMembership({ id: 'm-old', organizationId: 'o1', organizationName: 'Antiga' }),
+      baseMembership({
+        id: 'm-admin',
+        organizationId: 'o2',
+        organizationName: 'Admin Org',
+        isAdmin: true,
+      }),
+      baseMembership({
+        id: 'm-primary',
+        organizationId: 'o3',
+        organizationName: 'Primary Org',
+        isAdmin: true,
+        isPrimaryAdmin: true,
+      }),
+    ]);
+
+    expect(result.type).toBe('session');
+    if (result.type === 'session') {
+      expect(result.payload.membershipId).toBe('m-primary');
+      expect(result.payload.loginMode).toBe('admin');
+    }
+  });
+
+  it('prefers admin over non-admin when no primary admin exists', () => {
+    const result = resolveDefaultContext('user-1', [
+      baseMembership({ id: 'm-member', organizationId: 'o1' }),
+      baseMembership({
+        id: 'm-admin',
+        organizationId: 'o2',
+        isAdmin: true,
+      }),
+    ]);
+
+    expect(result.type).toBe('session');
+    if (result.type === 'session') {
+      expect(result.payload.membershipId).toBe('m-admin');
+      expect(result.payload.loginMode).toBe('admin');
+    }
   });
 });

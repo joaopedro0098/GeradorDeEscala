@@ -9,22 +9,10 @@ export function LoginForm() {
   const [state, formAction] = useActionState<ActionState, FormData>(loginAction, {});
 
   return (
-    <AuthShell title="Entrar" subtitle="Escolha se deseja acessar como usuário ou administrador.">
+    <AuthShell title="Entrar" subtitle="Acesse com seu e-mail e senha. A organização e o papel são escolhidos depois, dentro do app.">
       <form action={formAction} className="space-y-4">
         <Field label="E-mail" name="email" type="email" />
         <Field label="Senha" name="password" type="password" />
-
-        <fieldset className="space-y-2">
-          <legend className="text-sm font-medium text-zinc-800">Entrar como</legend>
-          <label className="flex items-center gap-2 text-sm text-zinc-700">
-            <input type="radio" name="loginMode" value="user" defaultChecked />
-            Usuário
-          </label>
-          <label className="flex items-center gap-2 text-sm text-zinc-700">
-            <input type="radio" name="loginMode" value="admin" />
-            Admin
-          </label>
-        </fieldset>
 
         {state.error ? <Alert message={state.error} tone="error" /> : null}
 

@@ -11,18 +11,17 @@ export function RegisterForm() {
   return (
     <AuthShell
       title="Cadastro"
-      subtitle="Informe o código da organização fornecido pelo administrador."
+      subtitle="Crie sua conta. Depois do login você pode criar uma organização ou entrar com um código de convite."
     >
       <form action={formAction} className="space-y-4">
         <Field label="Nome" name="name" />
         <Field label="E-mail" name="email" type="email" />
         <Field label="Senha" name="password" type="password" />
-        <Field label="Código da organização" name="inviteCode" />
 
         {state.error ? <Alert message={state.error} tone="error" /> : null}
         {state.success ? <Alert message={state.success} tone="success" /> : null}
 
-        <PrimaryButton label="Enviar cadastro" />
+        <PrimaryButton label="Criar conta" />
       </form>
 
       <p className="mt-4 text-center text-sm text-zinc-600">

@@ -1,9 +1,8 @@
-import { NotificationType } from '@/generated/prisma/client';
+import { NotificationType, type PlanTier } from '@/generated/prisma/client';
 import { prisma } from '@/lib/prisma';
 import { generateInviteCode } from '@/modules/auth/auth-logic';
 import { hashPassword, verifyPassword } from '@/modules/auth/password';
-import type { LoginMode, PostLoginResult } from '@/modules/auth/types';
-import { resolvePostLogin } from '@/modules/auth/auth-logic';
+import type { LoginMode, SessionPayload } from '@/modules/auth/types';
 import {
   findMembershipByIdForUser,
   findOrganizationByInviteCode,
@@ -11,12 +10,14 @@ import {
   listMembershipsForUser,
   mapMembershipSummary,
 } from '@/modules/organizations/organization.repository';
+import { attachUserId, toSessionPayload } from '@/modules/auth/permissions';
 
 export type AuthErrorCode =
   | 'INVALID_CREDENTIALS'
   | 'ORGANIZATION_NOT_FOUND'
   | 'MEMBERSHIP_ALREADY_EXISTS'
   | 'MEMBERSHIP_NOT_FOUND'
+  | 'EMAIL_ALREADY_EXISTS'
   | 'FORBIDDEN';
 
 export class AuthServiceError extends Error {
@@ -28,54 +29,16 @@ export class AuthServiceError extends Error {
   }
 }
 
-export async function registerWithInviteCode(input: {
+export async function registerUser(input: {
   name: string;
   email: string;
   password: string;
-  inviteCode: string;
 }): Promise<void> {
-  const organization = await findOrganizationByInviteCode(input.inviteCode);
-  if (!organization) {
-    throw new AuthServiceError('ORGANIZATION_NOT_FOUND', 'Código da organização inválido.');
-  }
-
   const email = input.email.toLowerCase();
   const existingUser = await findUserByEmail(email);
 
   if (existingUser) {
-    const passwordMatches = await verifyPassword(input.password, existingUser.passwordHash);
-    if (!passwordMatches) {
-      throw new AuthServiceError(
-        'INVALID_CREDENTIALS',
-        'E-mail já cadastrado. Use a senha correta.',
-      );
-    }
-
-    const duplicateMembership = await prisma.membership.findUnique({
-      where: {
-        userId_organizationId: {
-          userId: existingUser.id,
-          organizationId: organization.id,
-        },
-      },
-    });
-
-    if (duplicateMembership) {
-      throw new AuthServiceError(
-        'MEMBERSHIP_ALREADY_EXISTS',
-        'Você já possui vínculo com esta organização.',
-      );
-    }
-
-    await prisma.membership.create({
-      data: {
-        userId: existingUser.id,
-        organizationId: organization.id,
-        status: 'PENDING',
-      },
-    });
-
-    return;
+    throw new AuthServiceError('EMAIL_ALREADY_EXISTS', 'Este e-mail já está cadastrado.');
   }
 
   const passwordHash = await hashPassword(input.password);
@@ -85,12 +48,40 @@ export async function registerWithInviteCode(input: {
       email,
       name: input.name.trim(),
       passwordHash,
-      memberships: {
-        create: {
-          organizationId: organization.id,
-          status: 'PENDING',
-        },
+    },
+  });
+}
+
+export async function joinOrganizationWithInviteCode(input: {
+  userId: string;
+  inviteCode: string;
+}): Promise<void> {
+  const organization = await findOrganizationByInviteCode(input.inviteCode);
+  if (!organization) {
+    throw new AuthServiceError('ORGANIZATION_NOT_FOUND', 'Código da organização inválido.');
+  }
+
+  const duplicateMembership = await prisma.membership.findUnique({
+    where: {
+      userId_organizationId: {
+        userId: input.userId,
+        organizationId: organization.id,
       },
+    },
+  });
+
+  if (duplicateMembership) {
+    throw new AuthServiceError(
+      'MEMBERSHIP_ALREADY_EXISTS',
+      'Você já possui vínculo com esta organização.',
+    );
+  }
+
+  await prisma.membership.create({
+    data: {
+      userId: input.userId,
+      organizationId: organization.id,
+      status: 'PENDING',
     },
   });
 }
@@ -98,8 +89,7 @@ export async function registerWithInviteCode(input: {
 export async function authenticateUser(input: {
   email: string;
   password: string;
-  loginMode: LoginMode;
-}): Promise<{ userId: string; result: PostLoginResult }> {
+}): Promise<{ userId: string }> {
   const user = await findUserByEmail(input.email);
   if (!user) {
     throw new AuthServiceError('INVALID_CREDENTIALS', 'E-mail ou senha inválidos.');
@@ -110,27 +100,14 @@ export async function authenticateUser(input: {
     throw new AuthServiceError('INVALID_CREDENTIALS', 'E-mail ou senha inválidos.');
   }
 
-  const memberships = await listMembershipsForUser(user.id);
-  const result = resolvePostLogin(user.id, memberships, input.loginMode);
-
-  if (result.type === 'session' && input.loginMode === 'user') {
-    const membership = memberships.find((item) => item.id === result.payload.membershipId);
-    if (membership?.status === 'PENDING') {
-      throw new AuthServiceError(
-        'FORBIDDEN',
-        'Seu cadastro ainda aguarda aprovação de um administrador.',
-      );
-    }
-  }
-
-  return { userId: user.id, result };
+  return { userId: user.id };
 }
 
-export async function completeOrganizationSelection(input: {
+export async function buildSessionForMembership(input: {
   userId: string;
   membershipId: string;
   loginMode: LoginMode;
-}): Promise<PostLoginResult> {
+}): Promise<SessionPayload> {
   const membership = await findMembershipByIdForUser(input.membershipId, input.userId);
   if (!membership) {
     throw new AuthServiceError('MEMBERSHIP_NOT_FOUND', 'Organização não encontrada.');
@@ -146,29 +123,26 @@ export async function completeOrganizationSelection(input: {
     throw new AuthServiceError('FORBIDDEN', 'Você não é administrador desta organização.');
   }
 
-  return {
-    type: 'session',
-    payload: {
-      userId: input.userId,
-      membershipId: summary.id,
-      organizationId: summary.organizationId,
-      loginMode: input.loginMode,
-      isAdmin: summary.isAdmin,
-      isPrimaryAdmin: summary.isPrimaryAdmin,
-    },
-  };
+  return attachUserId(toSessionPayload(summary, input.loginMode), input.userId);
 }
 
 export async function createOrganizationForAdmin(input: {
   userId: string;
   organizationName: string;
-}): Promise<PostLoginResult> {
+  planTier: PlanTier;
+}): Promise<{
+  organizationId: string;
+  membershipId: string;
+  organizationName: string;
+  inviteCode: string;
+}> {
   const inviteCode = generateInviteCode(input.organizationName);
 
   const organization = await prisma.organization.create({
     data: {
       name: input.organizationName.trim(),
       inviteCode,
+      planTier: input.planTier,
       memberships: {
         create: {
           userId: input.userId,
@@ -189,15 +163,10 @@ export async function createOrganizationForAdmin(input: {
   const membership = organization.memberships[0];
 
   return {
-    type: 'session',
-    payload: {
-      userId: input.userId,
-      membershipId: membership.id,
-      organizationId: organization.id,
-      loginMode: 'admin',
-      isAdmin: true,
-      isPrimaryAdmin: true,
-    },
+    organizationId: organization.id,
+    membershipId: membership.id,
+    organizationName: organization.name,
+    inviteCode: organization.inviteCode,
   };
 }
 
@@ -264,7 +233,8 @@ export async function promoteMemberToAdmin(input: {
       membershipId: membership.id,
       type: NotificationType.ADMIN_PROMOTED,
       title: 'Promoção a Admin',
-      message: 'Você foi promovido a Admin, clique aqui.',
+      message:
+        'Você foi promovido a Admin. Use o botão "Ver como Admin" no cabeçalho para acessar a área administrativa, sem precisar sair e entrar de novo.',
     },
   });
 
@@ -290,3 +260,5 @@ export async function demoteAdmin(input: { organizationId: string; membershipId:
     data: { isAdmin: false },
   });
 }
+
+export { listMembershipsForUser };

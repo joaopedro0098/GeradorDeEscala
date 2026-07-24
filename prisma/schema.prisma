@@ -57,6 +57,12 @@ enum NotificationType {
   MEMBERSHIP_REJECTED
 }
 
+enum PlanTier {
+  BASIC
+  PRO
+  ENTERPRISE
+}
+
 model User {
   id           String       @id @default(cuid())
   email        String       @unique
@@ -71,6 +77,7 @@ model Organization {
   id                    String                 @id @default(cuid())
   name                  String
   inviteCode            String                 @unique
+  planTier              PlanTier               @default(BASIC)
   createdAt             DateTime               @default(now())
   updatedAt             DateTime               @updatedAt
   memberships           Membership[]

@@ -1,29 +1,32 @@
-import type { LoginMode, MembershipSummary, PostLoginResult } from './types';
-import { attachUserId, filterMembershipsForLoginMode, toSessionPayload } from './permissions';
+import type { MembershipSummary, PostLoginResult } from './types';
+import { attachUserId, toSessionPayload } from './permissions';
 
-export function resolvePostLogin(
+/**
+ * Picks the default organization context after login (no Admin/User radio).
+ * Priority among ACTIVE memberships: primary admin > admin > oldest.
+ * loginMode follows isAdmin on the chosen membership.
+ */
+export function resolveDefaultContext(
   userId: string,
   memberships: MembershipSummary[],
-  loginMode: LoginMode,
 ): PostLoginResult {
-  const eligible = filterMembershipsForLoginMode(memberships, loginMode);
+  const active = memberships.filter((membership) => membership.status === 'ACTIVE');
 
-  if (loginMode === 'admin' && eligible.length === 0) {
-    return { type: 'create_organization' };
+  if (active.length === 0) {
+    return { type: 'no_active_organization' };
   }
 
-  if (eligible.length === 0) {
-    throw new Error('Nenhuma organização ativa encontrada para este login.');
-  }
+  const chosen =
+    active.find((membership) => membership.isPrimaryAdmin) ??
+    active.find((membership) => membership.isAdmin) ??
+    active[0];
 
-  if (eligible.length === 1) {
-    return {
-      type: 'session',
-      payload: attachUserId(toSessionPayload(eligible[0], loginMode), userId),
-    };
-  }
+  const loginMode = chosen.isAdmin ? 'admin' : 'user';
 
-  return { type: 'select_organization', memberships: eligible };
+  return {
+    type: 'session',
+    payload: attachUserId(toSessionPayload(chosen, loginMode), userId),
+  };
 }
 
 export function slugifyInviteCode(value: string): string {

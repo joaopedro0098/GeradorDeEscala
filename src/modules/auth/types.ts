@@ -4,6 +4,7 @@ export type SessionPayload = {
   userId: string;
   membershipId: string;
   organizationId: string;
+  organizationName: string;
   loginMode: LoginMode;
   isAdmin: boolean;
   isPrimaryAdmin: boolean;
@@ -11,7 +12,6 @@ export type SessionPayload = {
 
 export type PendingLoginPayload = {
   userId: string;
-  loginMode: LoginMode;
 };
 
 export type MembershipSummary = {
@@ -26,5 +26,4 @@ export type MembershipSummary = {
 
 export type PostLoginResult =
   | { type: 'session'; payload: SessionPayload }
-  | { type: 'select_organization'; memberships: MembershipSummary[] }
-  | { type: 'create_organization' };
+  | { type: 'no_active_organization' };

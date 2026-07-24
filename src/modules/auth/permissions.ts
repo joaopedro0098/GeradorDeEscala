@@ -16,19 +16,6 @@ export function canManageMembers(session: Pick<SessionPayload, 'loginMode' | 'is
   return session.loginMode === 'admin' && session.isAdmin;
 }
 
-export function filterMembershipsForLoginMode(
-  memberships: MembershipSummary[],
-  loginMode: LoginMode,
-): MembershipSummary[] {
-  const active = memberships.filter((membership) => membership.status === 'ACTIVE');
-
-  if (loginMode === 'admin') {
-    return active.filter((membership) => membership.isAdmin);
-  }
-
-  return active;
-}
-
 export function toSessionPayload(
   membership: MembershipSummary,
   loginMode: LoginMode,
@@ -37,6 +24,7 @@ export function toSessionPayload(
     userId: '',
     membershipId: membership.id,
     organizationId: membership.organizationId,
+    organizationName: membership.organizationName,
     loginMode,
     isAdmin: membership.isAdmin,
     isPrimaryAdmin: membership.isPrimaryAdmin,

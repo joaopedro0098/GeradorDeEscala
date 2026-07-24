@@ -4,6 +4,7 @@ import {
   IntervalCountMode,
   MembershipStatus,
   NotificationType,
+  PlanTier,
   ScheduleGenerationStatus,
   ScheduleStatus,
 } from '@/generated/prisma/client';
@@ -34,6 +35,12 @@ describe('Prisma schema enums', () => {
     expect(NotificationType.ADMIN_PROMOTED).toBe('ADMIN_PROMOTED');
     expect(NotificationType.MEMBERSHIP_APPROVED).toBe('MEMBERSHIP_APPROVED');
     expect(NotificationType.MEMBERSHIP_REJECTED).toBe('MEMBERSHIP_REJECTED');
+  });
+
+  it('exports organization plan tiers', () => {
+    expect(PlanTier.BASIC).toBe('BASIC');
+    expect(PlanTier.PRO).toBe('PRO');
+    expect(PlanTier.ENTERPRISE).toBe('ENTERPRISE');
   });
 });
 

@@ -8,7 +8,7 @@
  * navegador: ele exercita a camada de serviço (a mesma usada pelas server
  * actions) direto contra esse banco real, cobrindo o fluxo completo:
  *
- *   cadastro (admin cria organização + membro se cadastra com invite code)
+ *   cadastro (admin cria User + organização com plano; membro cria User e entra com invite code)
  *   → aprovação de membro
  *   → marcação de disponibilidade
  *   → configuração mínima (função, requisito do dia da semana, evento)
@@ -31,7 +31,8 @@ import { prisma } from '@/lib/prisma';
 import {
   approveMembership,
   createOrganizationForAdmin,
-  registerWithInviteCode,
+  joinOrganizationWithInviteCode,
+  registerUser,
 } from '@/modules/auth/auth.service';
 import { hashPassword } from '@/modules/auth/password';
 import { toggleMemberAvailability } from '@/modules/availability/availability.service';
@@ -102,7 +103,7 @@ describe('Fase 10 — smoke test do caminho crítico (cadastro → ... → offli
   }, STEP_TIMEOUT_MS);
 
   it(
-    '1. cadastro — admin cria a organização',
+    '1. cadastro — admin cria a organização com plano',
     async () => {
       const passwordHash = await hashPassword('senha-super-secreta-123');
       const admin = await prisma.user.create({
@@ -114,42 +115,49 @@ describe('Fase 10 — smoke test do caminho crítico (cadastro → ... → offli
       });
       ctx.adminUserId = admin.id;
 
-      const result = await createOrganizationForAdmin({
+      const created = await createOrganizationForAdmin({
         userId: admin.id,
         organizationName: `Organização Smoke ${RUN_ID}`,
+        planTier: 'PRO',
       });
 
-      expect(result.type).toBe('session');
-      if (result.type !== 'session') throw new Error('unreachable');
-      ctx.organizationId = result.payload.organizationId;
+      ctx.organizationId = created.organizationId;
+      ctx.inviteCode = created.inviteCode;
 
       const organization = await prisma.organization.findUniqueOrThrow({
         where: { id: ctx.organizationId },
       });
-      ctx.inviteCode = organization.inviteCode;
+      expect(organization.planTier).toBe('PRO');
+      expect(organization.inviteCode).toBe(created.inviteCode);
     },
     STEP_TIMEOUT_MS,
   );
 
   it(
-    '2. cadastro — membro se registra com o código de convite',
+    '2. cadastro — membro cria conta e solicita entrada com código',
     async () => {
-      await registerWithInviteCode({
+      await registerUser({
         name: 'Membro Smoke',
         email: `${RUN_ID}-membro@example.com`,
         password: 'senha-super-secreta-123',
-        inviteCode: ctx.inviteCode!,
       });
 
       const user = await prisma.user.findUniqueOrThrow({
         where: { email: `${RUN_ID}-membro@example.com` },
-        include: { memberships: true },
       });
       ctx.memberUserId = user.id;
-      ctx.memberMembershipId = user.memberships[0].id;
 
-      expect(user.memberships[0].status).toBe('PENDING');
-      expect(user.memberships[0].organizationId).toBe(ctx.organizationId);
+      await joinOrganizationWithInviteCode({
+        userId: user.id,
+        inviteCode: ctx.inviteCode!,
+      });
+
+      const membership = await prisma.membership.findFirstOrThrow({
+        where: { userId: user.id, organizationId: ctx.organizationId },
+      });
+      ctx.memberMembershipId = membership.id;
+
+      expect(membership.status).toBe('PENDING');
     },
     STEP_TIMEOUT_MS,
   );

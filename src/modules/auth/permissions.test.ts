@@ -3,11 +3,11 @@ import {
   canManageAdminRoles,
   canManageMembers,
   canViewPlans,
-  filterMembershipsForLoginMode,
+  toSessionPayload,
 } from '@/modules/auth/permissions';
 import type { MembershipSummary } from '@/modules/auth/types';
 
-const membership = (overrides: Partial<MembershipSummary>): MembershipSummary => ({
+const membership = (overrides: Partial<MembershipSummary> = {}): MembershipSummary => ({
   id: 'm1',
   organizationId: 'o1',
   organizationName: 'Org',
@@ -35,14 +35,11 @@ describe('permissions', () => {
     expect(canManageMembers({ loginMode: 'admin', isAdmin: false })).toBe(false);
   });
 
-  it('filters memberships by login mode', () => {
-    const memberships = [
-      membership({ id: 'm1', isAdmin: true }),
-      membership({ id: 'm2' }),
-      membership({ id: 'm3', status: 'PENDING' }),
-    ];
-
-    expect(filterMembershipsForLoginMode(memberships, 'admin')).toHaveLength(1);
-    expect(filterMembershipsForLoginMode(memberships, 'user')).toHaveLength(2);
+  it('builds session payload with organization name', () => {
+    expect(toSessionPayload(membership({ organizationName: 'Louvor', isAdmin: true }), 'admin')).toMatchObject({
+      organizationName: 'Louvor',
+      loginMode: 'admin',
+      isAdmin: true,
+    });
   });
 });
