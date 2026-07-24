@@ -1,7 +1,4 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
+// Gerador de Escala — modelagem multi-tenant (nomenclatura genérica)
 
 generator client {
   provider = "prisma-client"
@@ -10,4 +7,247 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+}
+
+enum MembershipStatus {
+  PENDING
+  ACTIVE
+  REJECTED
+}
+
+enum DayOfWeek {
+  SUNDAY
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+  SATURDAY
+}
+
+enum IntervalCountMode {
+  BY_EVENT
+  BY_DAY_OF_WEEK
+}
+
+enum ScheduleStatus {
+  DRAFT
+  PUBLISHED
+}
+
+enum ScheduleGenerationStatus {
+  COMPLETE
+  INCOMPLETE_BY_SHORTAGE
+  INCOMPLETE_BY_TIMEOUT
+}
+
+enum NotificationType {
+  ADMIN_PROMOTED
+  MEMBERSHIP_APPROVED
+  MEMBERSHIP_REJECTED
+}
+
+model User {
+  id           String       @id @default(cuid())
+  email        String       @unique
+  passwordHash String
+  name         String
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  memberships  Membership[]
+}
+
+model Organization {
+  id                     String                  @id @default(cuid())
+  name                   String
+  inviteCode             String                  @unique
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  memberships            Membership[]
+  roles                  Role[]
+  events                 Event[]
+  dayOfWeekRequirements  DayOfWeekRequirement[]
+  participationConfig    ParticipationConfig?
+  intervalRules          IntervalRule[]
+  priorityRoles          PriorityRole[]
+  schedules              Schedule[]
+}
+
+model Membership {
+  id              String                      @id @default(cuid())
+  userId          String
+  organizationId  String
+  status          MembershipStatus            @default(PENDING)
+  isAdmin         Boolean                     @default(false)
+  isPrimaryAdmin  Boolean                     @default(false)
+  createdAt       DateTime                    @default(now())
+  updatedAt       DateTime                    @updatedAt
+  user            User                        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization    Organization                @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  rolePreferences MembershipRolePreference[]
+  availabilities  Availability[]
+  scheduleSlots   ScheduleSlot[]
+  notifications   Notification[]
+
+  @@unique([userId, organizationId])
+  @@index([organizationId, status])
+}
+
+model Role {
+  id                    String                      @id @default(cuid())
+  organizationId        String
+  name                  String
+  createdAt             DateTime                    @default(now())
+  updatedAt             DateTime                    @updatedAt
+  organization          Organization                @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  membershipPreferences MembershipRolePreference[]
+  dayOfWeekRequirements DayOfWeekRequirement[]
+  intervalRules         IntervalRule[]
+  priorityRoles         PriorityRole[]
+  scheduleSlots         ScheduleSlot[]
+
+  @@unique([organizationId, name])
+}
+
+model MembershipRolePreference {
+  id           String     @id @default(cuid())
+  membershipId String
+  roleId       String
+  sortOrder    Int
+  createdAt    DateTime   @default(now())
+  membership   Membership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([membershipId, roleId])
+  @@unique([membershipId, sortOrder])
+}
+
+model Event {
+  id             String         @id @default(cuid())
+  organizationId String
+  date           DateTime       @db.Date
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  availabilities Availability[]
+  scheduleSlots  ScheduleSlot[]
+
+  @@unique([organizationId, date])
+  @@index([organizationId, date])
+}
+
+model DayOfWeekRequirement {
+  id             String      @id @default(cuid())
+  organizationId String
+  dayOfWeek      DayOfWeek
+  roleId         String
+  quantity       Int
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  role           Role        @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, dayOfWeek, roleId])
+}
+
+model Availability {
+  id           String     @id @default(cuid())
+  membershipId String
+  eventId      String
+  createdAt    DateTime   @default(now())
+  membership   Membership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  event        Event      @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([membershipId, eventId])
+  @@index([eventId])
+}
+
+model ParticipationConfig {
+  id             String       @id @default(cuid())
+  organizationId String       @unique
+  minimumDays    Int
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
+
+model IntervalRule {
+  id             String            @id @default(cuid())
+  organizationId String
+  roleId         String?
+  /// 'GENERAL' for org-wide rules, otherwise mirrors roleId for per-role rules.
+  scopeKey       String
+  intervalCount  Int
+  countMode      IntervalCountMode
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  role           Role?             @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, scopeKey])
+  @@index([organizationId])
+}
+
+model PriorityRole {
+  id             String       @id @default(cuid())
+  organizationId String
+  roleId         String
+  sortOrder      Int
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  role           Role         @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, roleId])
+  @@unique([organizationId, sortOrder])
+}
+
+model Schedule {
+  id                String                    @id @default(cuid())
+  organizationId    String
+  year              Int
+  month             Int
+  status            ScheduleStatus            @default(DRAFT)
+  generationStatus  ScheduleGenerationStatus?
+  hasPublishedGaps  Boolean                   @default(false)
+  publishedAt       DateTime?
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
+  organization      Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  slots             ScheduleSlot[]
+
+  @@unique([organizationId, year, month])
+}
+
+model ScheduleSlot {
+  id           String      @id @default(cuid())
+  scheduleId   String
+  eventId      String
+  roleId       String
+  slotIndex    Int         @default(0)
+  membershipId String?
+  isManual     Boolean     @default(false)
+  isMinister   Boolean     @default(false)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  schedule     Schedule    @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  event        Event       @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  role         Role        @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  membership   Membership? @relation(fields: [membershipId], references: [id], onDelete: SetNull)
+
+  @@unique([scheduleId, eventId, roleId, slotIndex])
+  @@index([scheduleId])
+}
+
+model Notification {
+  id           String           @id @default(cuid())
+  membershipId String
+  type         NotificationType
+  title        String
+  message      String
+  readAt       DateTime?
+  createdAt    DateTime         @default(now())
+  membership   Membership       @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+
+  @@index([membershipId, readAt])
 }

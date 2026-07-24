@@ -25,13 +25,16 @@ Sistema de geração automática de escalas para organizações (primeira aplica
    npm install
    ```
 
-2. Copie o arquivo de variáveis de ambiente e preencha com a connection string do seu banco:
+2. Copie o arquivo de variáveis de ambiente e preencha com as duas URLs do Supabase:
 
    ```bash
    cp .env.example .env
    ```
 
-   No Supabase, a connection string fica em **Project Settings > Database > Connection string > URI**.
+   No Supabase, em **Project Settings > Database > Connection string**:
+
+   - `DATABASE_URL` → **Transaction pooler** (porta 6543, `?pgbouncer=true`)
+   - `DIRECT_URL` → **Direct connection** (porta 5432) — usada pelo Prisma Migrate
 
 3. Gere o Prisma Client:
 
@@ -39,13 +42,19 @@ Sistema de geração automática de escalas para organizações (primeira aplica
    npx prisma generate
    ```
 
-4. Aplique as migrações no banco (quando já houver schema definido):
+4. Aplique as migrações no banco:
 
    ```bash
-   npx prisma migrate dev
+   npx prisma migrate deploy
    ```
 
-5. Rode o servidor de desenvolvimento:
+5. (Opcional) Popule dados de exemplo:
+
+   ```bash
+   npx prisma db seed
+   ```
+
+6. Rode o servidor de desenvolvimento:
 
    ```bash
    npm run dev
