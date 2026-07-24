@@ -67,17 +67,18 @@ Sistema de geração automática de escalas para organizações (primeira aplica
 
 ## Scripts disponíveis
 
-| Comando                 | Descrição                                 |
-| ----------------------- | ----------------------------------------- |
-| `npm run dev`           | Sobe o servidor de desenvolvimento        |
-| `npm run build`         | Build de produção                         |
-| `npm run start`         | Roda o build de produção                  |
-| `npm run lint`          | Roda o ESLint                             |
-| `npm run format`        | Formata o código com Prettier             |
-| `npm run format:check`  | Verifica formatação sem alterar arquivos  |
-| `npm run test`          | Roda os testes automatizados (Vitest)     |
-| `npm run test:watch`    | Roda os testes em modo watch              |
-| `npm run test:coverage` | Roda os testes com relatório de cobertura |
+| Comando                 | Descrição                                                    |
+| ----------------------- | ------------------------------------------------------------ |
+| `npm run dev`           | Sobe o servidor de desenvolvimento                           |
+| `npm run build`         | Build de produção                                            |
+| `npm run start`         | Roda o build de produção                                     |
+| `npm run lint`          | Roda o ESLint                                                |
+| `npm run format`        | Formata o código com Prettier                                |
+| `npm run format:check`  | Verifica formatação sem alterar arquivos                     |
+| `npm run test`          | Roda os testes automatizados (Vitest)                        |
+| `npm run test:watch`    | Roda os testes em modo watch                                 |
+| `npm run test:coverage` | Roda os testes com relatório de cobertura                    |
+| `npm run test:smoke`    | Roda o smoke test ponta a ponta (usa o banco real de `.env`) |
 
 ## Estrutura de pastas
 
@@ -102,3 +103,9 @@ prisma/
 - Commits locais a cada etapa concluída e testada; **nenhum `git push` é feito sem autorização explícita**.
 - O motor de geração de escala (`src/modules/scheduling`) é tratado como problema de satisfação de restrições (CSP) sobre o período inteiro, não como um algoritmo sequencial/guloso.
 - Testes automatizados são obrigatórios para: motor de geração de escala, fluxo de autenticação/multi-tenant e regras de mínimo de participação.
+
+## Smoke test ponta a ponta
+
+`src/test/critical-path.smoke.test.ts` cobre o caminho crítico completo (cadastro → aprovação → disponibilidade → geração → publicação → visualização pelo membro → edição manual → regeneração com `keep_manual` → undo → leitura offline) chamando diretamente a camada de serviço (a mesma usada pelas server actions) contra o banco real configurado em `.env`.
+
+Não é um teste de navegador (o projeto não usa Playwright/Cypress) nem roda contra um banco de teste isolado — por isso fica fora do `npm run test` padrão e só executa via `npm run test:smoke`. Ele cria uma organização isolada (nome/e-mails únicos por execução) e remove tudo que criou ao final (`afterAll`); se o banco não estiver acessível, o teste falha explicitamente em vez de pular silenciosamente.

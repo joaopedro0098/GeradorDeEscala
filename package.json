@@ -12,6 +12,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "test:smoke": "vitest run --config vitest.smoke.config.ts",
     "db:check-env": "node scripts/check-env.mjs",
     "db:migrate": "node scripts/check-env.mjs && prisma migrate deploy",
     "db:seed": "prisma db seed"
