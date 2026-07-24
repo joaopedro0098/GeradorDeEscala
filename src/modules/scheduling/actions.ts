@@ -1,0 +1,250 @@
+'use server';
+
+import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
+import { z } from 'zod';
+import type { DayOfWeek, IntervalCountMode } from '@/generated/prisma/client';
+import { requireSession } from '@/lib/auth.server';
+import { canManageMembers } from '@/modules/auth/permissions';
+import {
+  addPriorityRole,
+  ConfigurationServiceError,
+  createRole,
+  deleteRole,
+  getScheduleConfiguration,
+  movePriorityRole,
+  removeIntervalRule,
+  removePriorityRole,
+  setParticipationMinimum,
+  toggleEventDate,
+  upsertDayRequirement,
+  upsertIntervalRule,
+} from '@/modules/scheduling/configuration.service';
+
+const CONFIG_PATH = '/admin/configuracoes';
+
+function revalidateConfiguration() {
+  revalidatePath(CONFIG_PATH);
+}
+
+async function requireAdminSession() {
+  const session = await requireSession({ loginMode: 'admin' });
+  if (!canManageMembers(session)) {
+    throw new ConfigurationServiceError('Sem permissão para configurar a escala.');
+  }
+  return session;
+}
+
+function mapError(error: unknown): { error: string } {
+  if (error instanceof ConfigurationServiceError) {
+    return { error: error.message };
+  }
+  if (error instanceof z.ZodError) {
+    return { error: error.issues[0]?.message ?? 'Dados inválidos.' };
+  }
+  return { error: 'Não foi possível salvar a configuração.' };
+}
+
+export async function getConfigurationPageData() {
+  const session = await requireSession({ loginMode: 'admin' });
+  if (!canManageMembers(session)) {
+    redirect('/admin');
+  }
+  const configuration = await getScheduleConfiguration(session.organizationId);
+  return { session, configuration };
+}
+
+export async function toggleEventDateAction(dateKey: string): Promise<void> {
+  try {
+    const session = await requireAdminSession();
+    await toggleEventDate(session.organizationId, dateKey);
+    revalidateConfiguration();
+  } catch (error) {
+    console.error(mapError(error).error);
+  }
+}
+
+export async function createRoleAction(
+  _prev: { error?: string; success?: string },
+  formData: FormData,
+): Promise<{ error?: string; success?: string }> {
+  try {
+    const session = await requireAdminSession();
+    const name = z.string().trim().min(1, 'Informe o nome da função.').parse(formData.get('name'));
+    await createRole(session.organizationId, name);
+    revalidateConfiguration();
+    return { success: 'Função adicionada.' };
+  } catch (error) {
+    return mapError(error);
+  }
+}
+
+export async function deleteRoleAction(roleId: string): Promise<void> {
+  try {
+    const session = await requireAdminSession();
+    await deleteRole(session.organizationId, roleId);
+    revalidateConfiguration();
+  } catch (error) {
+    console.error(mapError(error).error);
+  }
+}
+
+export async function saveDayRequirementAction(formData: FormData): Promise<void> {
+  try {
+    const session = await requireAdminSession();
+    const parsed = z
+      .object({
+        dayOfWeek: z.enum([
+          'SUNDAY',
+          'MONDAY',
+          'TUESDAY',
+          'WEDNESDAY',
+          'THURSDAY',
+          'FRIDAY',
+          'SATURDAY',
+        ]),
+        roleId: z.string().min(1),
+        quantity: z.coerce.number().int().min(0),
+      })
+      .parse({
+        dayOfWeek: formData.get('dayOfWeek'),
+        roleId: formData.get('roleId'),
+        quantity: formData.get('quantity'),
+      });
+
+    await upsertDayRequirement({
+      organizationId: session.organizationId,
+      dayOfWeek: parsed.dayOfWeek as DayOfWeek,
+      roleId: parsed.roleId,
+      quantity: parsed.quantity,
+    });
+    revalidateConfiguration();
+  } catch (error) {
+    console.error(mapError(error).error);
+  }
+}
+
+export async function saveGeneralIntervalRuleAction(
+  _prev: { error?: string; success?: string },
+  formData: FormData,
+): Promise<{ error?: string; success?: string }> {
+  try {
+    const session = await requireAdminSession();
+    const parsed = z
+      .object({
+        intervalCount: z.coerce.number().int().min(0),
+        countMode: z.enum(['BY_EVENT', 'BY_DAY_OF_WEEK']),
+      })
+      .parse({
+        intervalCount: formData.get('intervalCount'),
+        countMode: formData.get('countMode'),
+      });
+
+    await upsertIntervalRule({
+      organizationId: session.organizationId,
+      intervalCount: parsed.intervalCount,
+      countMode: parsed.countMode as IntervalCountMode,
+    });
+    revalidateConfiguration();
+    return { success: 'Regra geral de intervalo salva.' };
+  } catch (error) {
+    return mapError(error);
+  }
+}
+
+export async function saveRoleIntervalRuleAction(formData: FormData): Promise<void> {
+  try {
+    const session = await requireAdminSession();
+    const parsed = z
+      .object({
+        roleId: z.string().min(1),
+        intervalCount: z.coerce.number().int().min(0),
+        countMode: z.enum(['BY_EVENT', 'BY_DAY_OF_WEEK']),
+      })
+      .parse({
+        roleId: formData.get('roleId'),
+        intervalCount: formData.get('intervalCount'),
+        countMode: formData.get('countMode'),
+      });
+
+    await upsertIntervalRule({
+      organizationId: session.organizationId,
+      roleId: parsed.roleId,
+      intervalCount: parsed.intervalCount,
+      countMode: parsed.countMode as IntervalCountMode,
+    });
+    revalidateConfiguration();
+  } catch (error) {
+    console.error(mapError(error).error);
+  }
+}
+
+export async function removeRoleIntervalRuleAction(roleId: string): Promise<void> {
+  try {
+    const session = await requireAdminSession();
+    await removeIntervalRule({ organizationId: session.organizationId, roleId });
+    revalidateConfiguration();
+  } catch (error) {
+    console.error(mapError(error).error);
+  }
+}
+
+export async function addPriorityRoleAction(roleId: string): Promise<void> {
+  try {
+    const session = await requireAdminSession();
+    await addPriorityRole(session.organizationId, roleId);
+    revalidateConfiguration();
+  } catch (error) {
+    console.error(mapError(error).error);
+  }
+}
+
+export async function removePriorityRoleAction(roleId: string): Promise<void> {
+  try {
+    const session = await requireAdminSession();
+    await removePriorityRole(session.organizationId, roleId);
+    revalidateConfiguration();
+  } catch (error) {
+    console.error(mapError(error).error);
+  }
+}
+
+export async function movePriorityRoleAction(
+  roleId: string,
+  direction: 'up' | 'down',
+): Promise<void> {
+  try {
+    const session = await requireAdminSession();
+    await movePriorityRole({
+      organizationId: session.organizationId,
+      roleId,
+      direction,
+    });
+    revalidateConfiguration();
+  } catch (error) {
+    console.error(mapError(error).error);
+  }
+}
+
+export async function saveParticipationMinimumAction(
+  _prev: { error?: string; success?: string },
+  formData: FormData,
+): Promise<{ error?: string; success?: string }> {
+  try {
+    const session = await requireAdminSession();
+    const minimumDays = z.coerce
+      .number()
+      .int()
+      .min(0, 'Informe um número válido.')
+      .parse(formData.get('minimumDays'));
+
+    await setParticipationMinimum({
+      organizationId: session.organizationId,
+      minimumDays,
+    });
+    revalidateConfiguration();
+    return { success: 'Mínimo de participação salvo.' };
+  } catch (error) {
+    return mapError(error);
+  }
+}

@@ -38,6 +38,9 @@ export function AppShell({
           </Link>
           {isAdmin ? (
             <>
+              <Link href="/admin/configuracoes" className="text-zinc-700 hover:text-zinc-900">
+                Configurações
+              </Link>
               <Link href="/admin/membros" className="text-zinc-700 hover:text-zinc-900">
                 Membros/Músicos
               </Link>
