@@ -38,6 +38,26 @@ export function hasBlankSlots(slots: Array<{ membershipId: string | null }>): bo
   return slots.some((slot) => slot.membershipId === null);
 }
 
+/** Counts unfilled slots in a single event card. */
+export function countBlankSlotsInEvent(event: ScheduleEventView): number {
+  return event.slots.filter((slot) => slot.membershipId === null).length;
+}
+
+/** True when an event has at least one blank slot (lacuna). */
+export function eventHasBlankSlots(event: ScheduleEventView): boolean {
+  return hasBlankSlots(event.slots);
+}
+
+/** Total blank slots across all events in a member-visible overview. */
+export function countBlankSlotsInOverview(events: ScheduleEventView[]): number {
+  return events.reduce((total, event) => total + countBlankSlotsInEvent(event), 0);
+}
+
+/** Event dates (YYYY-MM-DD) that still have at least one blank slot. */
+export function datesWithBlankSlots(events: ScheduleEventView[]): string[] {
+  return events.filter(eventHasBlankSlots).map((event) => event.date);
+}
+
 /**
  * Counts, per member, how many slots they were assigned across the whole
  * period (total) and broken down by role — used by the admin-only,

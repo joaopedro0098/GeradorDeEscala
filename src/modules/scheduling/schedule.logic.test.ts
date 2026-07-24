@@ -2,6 +2,10 @@ import { describe, expect, it } from 'vitest';
 import {
   applyMinisterSelection,
   countAssignmentsByMember,
+  countBlankSlotsInEvent,
+  countBlankSlotsInOverview,
+  datesWithBlankSlots,
+  eventHasBlankSlots,
   groupSlotsByEvent,
   hasBlankSlots,
 } from './schedule.logic';
@@ -50,6 +54,60 @@ describe('hasBlankSlots', () => {
     expect(hasBlankSlots([{ membershipId: 'mem-1' }, { membershipId: null }])).toBe(true);
     expect(hasBlankSlots([{ membershipId: 'mem-1' }])).toBe(false);
     expect(hasBlankSlots([])).toBe(false);
+  });
+});
+
+describe('member gap helpers (spec 4.4a)', () => {
+  const eventWithGap: Parameters<typeof eventHasBlankSlots>[0] = {
+    eventId: 'ev-1',
+    date: '2026-08-02',
+    dayOfWeek: 'SUNDAY',
+    slots: [
+      {
+        id: 's1',
+        roleId: 'role-vocal',
+        roleName: 'Vocal',
+        slotIndex: 0,
+        membershipId: 'mem-1',
+        memberName: 'Ana',
+        isManual: false,
+        isMinister: false,
+      },
+      {
+        id: 's2',
+        roleId: 'role-drums',
+        roleName: 'Bateria',
+        slotIndex: 0,
+        membershipId: null,
+        memberName: null,
+        isManual: false,
+        isMinister: false,
+      },
+    ],
+  };
+
+  const eventFull = {
+    ...eventWithGap,
+    eventId: 'ev-2',
+    date: '2026-08-09',
+    slots: eventWithGap.slots.map((slot) => ({
+      ...slot,
+      id: `${slot.id}-full`,
+      membershipId: 'mem-2',
+      memberName: 'Bruno',
+    })),
+  };
+
+  it('counts blank slots per event and across the overview', () => {
+    expect(countBlankSlotsInEvent(eventWithGap)).toBe(1);
+    expect(countBlankSlotsInEvent(eventFull)).toBe(0);
+    expect(countBlankSlotsInOverview([eventWithGap, eventFull])).toBe(1);
+  });
+
+  it('lists dates that still have lacunas', () => {
+    expect(eventHasBlankSlots(eventWithGap)).toBe(true);
+    expect(eventHasBlankSlots(eventFull)).toBe(false);
+    expect(datesWithBlankSlots([eventWithGap, eventFull])).toEqual(['2026-08-02']);
   });
 });
 
