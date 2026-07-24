@@ -50,6 +50,9 @@ export function AppShell({
               <Link href="/admin/eventos" className="text-zinc-700 hover:text-zinc-900">
                 Eventos
               </Link>
+              <Link href="/admin/escala" className="text-zinc-700 hover:text-zinc-900">
+                Escala
+              </Link>
               {canViewPlans(session) ? (
                 <Link href="/admin/planos" className="text-zinc-700 hover:text-zinc-900">
                   Planos
@@ -57,9 +60,14 @@ export function AppShell({
               ) : null}
             </>
           ) : (
-            <Link href="/membro/disponibilidade" className="text-zinc-700 hover:text-zinc-900">
-              Disponibilidade
-            </Link>
+            <>
+              <Link href="/membro/disponibilidade" className="text-zinc-700 hover:text-zinc-900">
+                Disponibilidade
+              </Link>
+              <Link href="/membro/escala" className="text-zinc-700 hover:text-zinc-900">
+                Escala
+              </Link>
+            </>
           )}
         </nav>
       </header>

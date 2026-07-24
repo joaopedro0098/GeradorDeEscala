@@ -20,11 +20,30 @@ import {
   upsertDayRequirement,
   upsertIntervalRule,
 } from '@/modules/scheduling/configuration.service';
+import {
+  generateSchedule,
+  getPreGenerationShortagePreview,
+  getScheduleOverviewForAdmin,
+  getScheduleOverviewForMember,
+  publishSchedule,
+  ScheduleServiceError,
+  setScheduleSlotMinister,
+} from '@/modules/scheduling/schedule.service';
+import type { SolverStatus } from '@/modules/scheduling/solver.types';
 
 const CONFIG_PATH = '/admin/configuracoes';
+const SCHEDULE_ADMIN_PATH = '/admin/escala';
+const SCHEDULE_MEMBER_PATH = '/membro/escala';
 
 function revalidateConfiguration() {
   revalidatePath(CONFIG_PATH);
+}
+
+function revalidateSchedule(year: number, month: number) {
+  revalidatePath(SCHEDULE_ADMIN_PATH);
+  revalidatePath(`${SCHEDULE_ADMIN_PATH}?year=${year}&month=${month}`);
+  revalidatePath(SCHEDULE_MEMBER_PATH);
+  revalidatePath(`${SCHEDULE_MEMBER_PATH}?year=${year}&month=${month}`);
 }
 
 async function requireAdminSession() {
@@ -36,7 +55,7 @@ async function requireAdminSession() {
 }
 
 function mapError(error: unknown): { error: string } {
-  if (error instanceof ConfigurationServiceError) {
+  if (error instanceof ConfigurationServiceError || error instanceof ScheduleServiceError) {
     return { error: error.message };
   }
   if (error instanceof z.ZodError) {
@@ -244,6 +263,69 @@ export async function saveParticipationMinimumAction(
     });
     revalidateConfiguration();
     return { success: 'Mínimo de participação salvo.' };
+  } catch (error) {
+    return mapError(error);
+  }
+}
+
+export async function getAdminSchedulePageData(year: number, month: number) {
+  const session = await requireSession({ loginMode: 'admin' });
+  if (!canManageMembers(session)) {
+    redirect('/admin');
+  }
+
+  const [overview, shortagePreview] = await Promise.all([
+    getScheduleOverviewForAdmin(session.organizationId, year, month),
+    getPreGenerationShortagePreview(session.organizationId, year, month),
+  ]);
+
+  return { session, overview, shortagePreview, year, month };
+}
+
+export async function getMemberSchedulePageData(year: number, month: number) {
+  const session = await requireSession({ loginMode: 'user' });
+  const overview = await getScheduleOverviewForMember(session.organizationId, year, month);
+  return { session, overview, year, month };
+}
+
+export async function generateScheduleAction(
+  year: number,
+  month: number,
+): Promise<{ error?: string; success?: string; status?: SolverStatus; blankCount?: number }> {
+  try {
+    const session = await requireAdminSession();
+    const result = await generateSchedule(session.organizationId, year, month);
+    revalidateSchedule(year, month);
+    return { success: 'Escala gerada.', status: result.status, blankCount: result.blankCount };
+  } catch (error) {
+    return mapError(error);
+  }
+}
+
+export async function publishScheduleAction(
+  year: number,
+  month: number,
+): Promise<{ error?: string; success?: string }> {
+  try {
+    const session = await requireAdminSession();
+    await publishSchedule(session.organizationId, year, month);
+    revalidateSchedule(year, month);
+    return { success: 'Escala publicada.' };
+  } catch (error) {
+    return mapError(error);
+  }
+}
+
+export async function setScheduleSlotMinisterAction(
+  scheduleSlotId: string,
+  year: number,
+  month: number,
+): Promise<{ error?: string }> {
+  try {
+    const session = await requireAdminSession();
+    await setScheduleSlotMinister(session.organizationId, scheduleSlotId);
+    revalidateSchedule(year, month);
+    return {};
   } catch (error) {
     return mapError(error);
   }
