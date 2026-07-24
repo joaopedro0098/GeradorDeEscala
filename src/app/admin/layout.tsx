@@ -15,9 +15,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
 
   return (
     <>
-      <AppShell context={context} title="Equipgestor">
-        {children}
-      </AppShell>
+      <AppShell context={context}>{children}</AppShell>
       {promotionNotification ? (
         <AdminPromotionModal notificationId={promotionNotification.id} />
       ) : null}

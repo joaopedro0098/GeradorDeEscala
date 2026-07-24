@@ -10,6 +10,7 @@ type MembershipWithOrganization = {
   isPrimaryAdmin: boolean;
   organization: {
     name: string;
+    logoUrl: string | null;
     inviteCode: string;
   };
 };
@@ -19,6 +20,7 @@ export function mapMembershipSummary(membership: MembershipWithOrganization): Me
     id: membership.id,
     organizationId: membership.organizationId,
     organizationName: membership.organization.name,
+    organizationLogoUrl: membership.organization.logoUrl,
     inviteCode: membership.organization.inviteCode,
     status: membership.status,
     isAdmin: membership.isAdmin,
@@ -37,7 +39,7 @@ export async function listMembershipsForUser(userId: string): Promise<Membership
     where: { userId },
     include: {
       organization: {
-        select: { name: true, inviteCode: true },
+        select: { name: true, logoUrl: true, inviteCode: true },
       },
     },
     orderBy: { createdAt: 'asc' },
@@ -57,7 +59,7 @@ export async function findMembershipByIdForUser(membershipId: string, userId: st
     where: { id: membershipId, userId },
     include: {
       organization: {
-        select: { name: true, inviteCode: true },
+        select: { name: true, logoUrl: true, inviteCode: true },
       },
     },
   });

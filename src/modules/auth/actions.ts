@@ -17,6 +17,7 @@ import {
   registerUser,
   rejectMembership,
   removeMembership,
+  updateOrganizationProfile,
   updateUserEmail,
   updateUserPassword,
 } from '@/modules/auth/auth.service';
@@ -31,7 +32,12 @@ import {
   setPendingLoginCookie,
   setSessionCookie,
 } from '@/modules/auth/session';
-import { canManageAdminRoles, canManageMembers, canViewPlans } from '@/modules/auth/permissions';
+import {
+  canEditOrganizationProfile,
+  canManageAdminRoles,
+  canManageMembers,
+  canViewPlans,
+} from '@/modules/auth/permissions';
 import { prisma } from '@/lib/prisma';
 import type { LoginMode } from '@/modules/auth/types';
 
@@ -63,6 +69,11 @@ const updatePasswordSchema = z.object({
   path: ['confirmPassword'],
 });
 
+const updateOrganizationProfileSchema = z.object({
+  organizationName: z.string().trim().min(2, 'Informe o nome da organização.'),
+  logoDataUrl: z.string().optional(),
+});
+
 const joinOrganizationSchema = z.object({
   inviteCode: z.string().trim().min(2, 'Informe o código da organização.'),
 });
@@ -78,7 +89,7 @@ async function completeLoginForUser(userId: string): Promise<string> {
   if (result.type === 'no_active_organization') {
     await clearSessionCookie();
     await setPendingLoginCookie({ userId });
-    return '/admin';
+    return '/admin/organizacoes';
   }
 
   await setSessionCookie(result.payload);
@@ -162,7 +173,7 @@ export async function createOrganizationAction(
       });
       await clearPendingLoginCookie();
       await setSessionCookie(payload);
-      redirectTo = '/admin';
+      redirectTo = '/admin/escala';
     } else {
       revalidatePath('/admin/organizacoes');
       revalidatePath('/membro/organizacoes');
@@ -303,6 +314,8 @@ export async function markNotificationReadAction(notificationId: string): Promis
 
   revalidatePath('/membro');
   revalidatePath('/admin');
+  revalidatePath('/membro/escala');
+  revalidatePath('/admin/escala');
 }
 
 export async function acceptAdminPromotionAction(notificationId: string): Promise<void> {
@@ -317,7 +330,7 @@ export async function acceptAdminPromotionAction(notificationId: string): Promis
   });
 
   if (!session.isAdmin) {
-    redirect('/membro');
+    redirect('/membro/escala');
   }
 
   const payload = await buildSessionForMembership({
@@ -327,7 +340,7 @@ export async function acceptAdminPromotionAction(notificationId: string): Promis
   });
 
   await setSessionCookie(payload);
-  redirect('/admin');
+  redirect('/admin/escala');
 }
 
 export async function getUnreadAdminPromotionNotification() {
@@ -423,6 +436,43 @@ export async function updatePasswordAction(_prev: ActionState, formData: FormDat
   }
 }
 
+export async function updateOrganizationProfileAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  try {
+    const session = await getSessionFromCookies();
+    if (!session || !canEditOrganizationProfile(session)) {
+      return { error: 'Apenas o admin principal pode editar o perfil da organização.' };
+    }
+
+    const logoRaw = String(formData.get('logoDataUrl') ?? '').trim();
+    const parsed = updateOrganizationProfileSchema.parse({
+      organizationName: formData.get('organizationName'),
+      logoDataUrl: logoRaw || undefined,
+    });
+
+    const updated = await updateOrganizationProfile({
+      organizationId: session.organizationId,
+      name: parsed.organizationName,
+      logoDataUrl: parsed.logoDataUrl,
+    });
+
+    await setSessionCookie({
+      ...session,
+      organizationName: updated.name,
+      organizationLogoUrl: updated.logoUrl,
+    });
+
+    revalidatePath('/admin');
+    revalidatePath('/membro');
+    revalidatePath('/admin/conta');
+    return { success: 'Perfil da organização atualizado.' };
+  } catch (error) {
+    return handleActionError(error);
+  }
+}
+
 export async function getAccountPageData() {
   const session = await getSessionFromCookies();
   const pending = await getPendingLoginFromCookies();
@@ -435,19 +485,23 @@ export async function getAccountPageData() {
     select: { email: true, name: true },
   });
 
-  if (!session || !canViewPlans(session)) {
-    return { user, session, organization: null };
+  const canEditProfile = session ? canEditOrganizationProfile(session) : false;
+  const showPlans = session ? canViewPlans(session) : false;
+
+  if (!session || (!canEditProfile && !showPlans)) {
+    return { user, session, organization: null, canEditProfile: false };
   }
 
   const organization = await prisma.organization.findUnique({
     where: { id: session.organizationId },
     select: {
       name: true,
+      logoUrl: true,
       planTier: true,
       subscriptionStatus: true,
       trialStartedAt: true,
     },
   });
 
-  return { user, session, organization };
+  return { user, session, organization, canEditProfile };
 }

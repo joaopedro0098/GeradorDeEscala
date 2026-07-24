@@ -6,6 +6,7 @@ const baseMembership = (
   overrides: Partial<MembershipSummary> & Pick<MembershipSummary, 'id' | 'organizationId'>,
 ): MembershipSummary => ({
   organizationName: 'Org',
+  organizationLogoUrl: null,
   inviteCode: 'ORG-1',
   status: 'ACTIVE',
   isAdmin: false,

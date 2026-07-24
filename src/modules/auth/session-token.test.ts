@@ -11,6 +11,7 @@ describe('session tokens', () => {
       membershipId: 'membership-1',
       organizationId: 'org-1',
       organizationName: 'Org Teste',
+      organizationLogoUrl: null,
       loginMode: 'admin',
       isAdmin: true,
       isPrimaryAdmin: true,
@@ -22,6 +23,7 @@ describe('session tokens', () => {
       membershipId: 'membership-1',
       organizationId: 'org-1',
       organizationName: 'Org Teste',
+      organizationLogoUrl: null,
       loginMode: 'admin',
     });
   });

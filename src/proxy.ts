@@ -42,7 +42,7 @@ export async function proxy(request: NextRequest) {
         return NextResponse.redirect(new URL('/login', request.url));
       }
       if (session.loginMode !== 'admin') {
-        return NextResponse.redirect(new URL('/membro', request.url));
+        return NextResponse.redirect(new URL('/membro/escala', request.url));
       }
 
       const response = NextResponse.next();
@@ -78,7 +78,7 @@ export async function proxy(request: NextRequest) {
   }
 
   if (session.loginMode !== 'user') {
-    return NextResponse.redirect(new URL('/admin', request.url));
+    return NextResponse.redirect(new URL('/admin/escala', request.url));
   }
 
   const response = NextResponse.next();

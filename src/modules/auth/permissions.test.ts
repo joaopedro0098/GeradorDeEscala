@@ -11,6 +11,7 @@ const membership = (overrides: Partial<MembershipSummary> = {}): MembershipSumma
   id: 'm1',
   organizationId: 'o1',
   organizationName: 'Org',
+  organizationLogoUrl: null,
   inviteCode: 'ORG',
   status: 'ACTIVE',
   isAdmin: false,

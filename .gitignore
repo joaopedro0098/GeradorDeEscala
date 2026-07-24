@@ -41,3 +41,7 @@ yarn-error.log*
 next-env.d.ts
 
 /src/generated/prisma
+
+# uploaded organization logos
+/public/uploads/organizations/*
+!/public/uploads/organizations/.gitkeep

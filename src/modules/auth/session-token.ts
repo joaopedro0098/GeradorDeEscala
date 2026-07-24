@@ -33,7 +33,11 @@ export async function createSessionToken(payload: SessionPayload): Promise<strin
 export async function verifySessionToken(token: string): Promise<SessionPayload | null> {
   try {
     const { payload } = await jwtVerify(token, getSessionSecretKey());
-    return payload as unknown as SessionPayload;
+    const session = payload as unknown as SessionPayload;
+    return {
+      ...session,
+      organizationLogoUrl: session.organizationLogoUrl ?? null,
+    };
   } catch {
     return null;
   }

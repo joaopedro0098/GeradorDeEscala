@@ -1,3 +1,5 @@
+import { mkdir, writeFile } from 'node:fs/promises';
+import path from 'node:path';
 import { NotificationType, type PlanTier, type SubscriptionStatus } from '@/generated/prisma/client';
 import { prisma } from '@/lib/prisma';
 import { generateInviteCode, normalizeEmail } from '@/modules/auth/auth-logic';
@@ -18,7 +20,8 @@ export type AuthErrorCode =
   | 'MEMBERSHIP_ALREADY_EXISTS'
   | 'MEMBERSHIP_NOT_FOUND'
   | 'EMAIL_ALREADY_EXISTS'
-  | 'FORBIDDEN';
+  | 'FORBIDDEN'
+  | 'VALIDATION';
 
 export class AuthServiceError extends Error {
   constructor(
@@ -232,6 +235,55 @@ export async function updateUserPassword(input: {
     where: { id: input.userId },
     data: { passwordHash },
   });
+}
+
+export async function updateOrganizationProfile(input: {
+  organizationId: string;
+  name: string;
+  logoDataUrl?: string | null;
+}): Promise<{ name: string; logoUrl: string | null }> {
+  const name = input.name.trim();
+  if (name.length < 2) {
+    throw new AuthServiceError('VALIDATION', 'Informe o nome da organização.');
+  }
+
+  let logoUrl: string | null | undefined;
+
+  if (input.logoDataUrl) {
+    logoUrl = await saveOrganizationLogo(input.organizationId, input.logoDataUrl);
+  }
+
+  const organization = await prisma.organization.update({
+    where: { id: input.organizationId },
+    data: {
+      name,
+      ...(logoUrl !== undefined ? { logoUrl } : {}),
+    },
+    select: { name: true, logoUrl: true },
+  });
+
+  return organization;
+}
+
+async function saveOrganizationLogo(organizationId: string, dataUrl: string): Promise<string> {
+  const match = /^data:image\/(jpeg|jpg|png|webp);base64,([A-Za-z0-9+/=]+)$/i.exec(dataUrl);
+  if (!match) {
+    throw new AuthServiceError('VALIDATION', 'Imagem inválida. Use JPG, PNG ou WebP.');
+  }
+
+  const buffer = Buffer.from(match[2], 'base64');
+  const maxBytes = 800_000;
+  if (buffer.length > maxBytes) {
+    throw new AuthServiceError('VALIDATION', 'A imagem é muito grande. Tente com zoom menor.');
+  }
+
+  const uploadsDir = path.join(process.cwd(), 'public', 'uploads', 'organizations');
+  await mkdir(uploadsDir, { recursive: true });
+
+  const filename = `${organizationId}.jpg`;
+  await writeFile(path.join(uploadsDir, filename), buffer);
+
+  return `/uploads/organizations/${filename}?v=${Date.now()}`;
 }
 
 export async function listPendingMembers(organizationId: string) {

@@ -20,7 +20,7 @@ export async function getAppShellContext(options?: {
   if (!userId) return null;
 
   if (session && options?.loginMode && session.loginMode !== options.loginMode) {
-    redirect(options.loginMode === 'admin' ? '/membro' : '/admin');
+    redirect(options.loginMode === 'admin' ? '/membro/escala' : '/admin/escala');
   }
 
   const memberships = await listMembershipsForUser(userId);
@@ -41,12 +41,12 @@ export async function requireOrganizationSession(options?: {
 
   if (!session) {
     const pending = await getPendingLoginFromCookies();
-    if (pending) redirect('/admin');
+    if (pending) redirect('/admin/organizacoes');
     redirect('/login');
   }
 
   if (options?.loginMode && session.loginMode !== options.loginMode) {
-    redirect(options.loginMode === 'admin' ? '/membro' : '/admin');
+    redirect(options.loginMode === 'admin' ? '/membro/escala' : '/admin/escala');
   }
 
   return session;

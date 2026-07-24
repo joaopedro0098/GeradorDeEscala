@@ -6,7 +6,7 @@ export function resolveMarketingAuthLinks(
   hasPendingLogin: boolean,
 ): MarketingAuthLinks {
   if (session) {
-    const appHref = session.loginMode === 'admin' ? '/admin' : '/membro';
+    const appHref = session.loginMode === 'admin' ? '/admin/escala' : '/membro/escala';
     return {
       primaryHref: appHref,
       primaryLabel: 'Ir para minha área',
@@ -18,9 +18,9 @@ export function resolveMarketingAuthLinks(
 
   if (hasPendingLogin) {
     return {
-      primaryHref: '/admin',
+      primaryHref: '/admin/organizacoes',
       primaryLabel: 'Ir para minha área',
-      navHref: '/admin',
+      navHref: '/admin/organizacoes',
       navLabel: 'Ir para minha área',
       isSignup: false,
     };

@@ -58,5 +58,5 @@ export async function clearPendingLoginCookie(): Promise<void> {
 }
 
 export function getDefaultRedirectForLoginMode(loginMode: LoginMode): string {
-  return loginMode === 'admin' ? '/admin' : '/membro';
+  return loginMode === 'admin' ? '/admin/escala' : '/membro/escala';
 }

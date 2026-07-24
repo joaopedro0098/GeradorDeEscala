@@ -16,6 +16,12 @@ export function canManageMembers(session: Pick<SessionPayload, 'loginMode' | 'is
   return session.loginMode === 'admin' && session.isAdmin;
 }
 
+export function canEditOrganizationProfile(
+  session: Pick<SessionPayload, 'loginMode' | 'isPrimaryAdmin'>,
+): boolean {
+  return session.loginMode === 'admin' && session.isPrimaryAdmin;
+}
+
 export function toSessionPayload(
   membership: MembershipSummary,
   loginMode: LoginMode,
@@ -25,6 +31,7 @@ export function toSessionPayload(
     membershipId: membership.id,
     organizationId: membership.organizationId,
     organizationName: membership.organizationName,
+    organizationLogoUrl: membership.organizationLogoUrl,
     loginMode,
     isAdmin: membership.isAdmin,
     isPrimaryAdmin: membership.isPrimaryAdmin,

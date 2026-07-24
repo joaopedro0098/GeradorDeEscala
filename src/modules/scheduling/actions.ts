@@ -72,7 +72,7 @@ function mapError(error: unknown): { error: string } {
 export async function getConfigurationPageData() {
   const session = await requireSession({ loginMode: 'admin' });
   if (!canManageMembers(session)) {
-    redirect('/admin');
+    redirect('/admin/escala');
   }
   const configuration = await getScheduleConfiguration(session.organizationId);
   return { session, configuration };
@@ -276,7 +276,7 @@ export async function saveParticipationMinimumAction(
 export async function getAdminSchedulePageData(year: number, month: number) {
   const session = await requireSession({ loginMode: 'admin' });
   if (!canManageMembers(session)) {
-    redirect('/admin');
+    redirect('/admin/escala');
   }
 
   const organization = await prisma.organization.findUniqueOrThrow({

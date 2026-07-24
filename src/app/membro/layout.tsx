@@ -7,15 +7,13 @@ import { getAppShellContext } from '@/lib/app-shell.server';
 
 export default async function MemberLayout({ children }: { children: ReactNode }) {
   const context = await getAppShellContext({ loginMode: 'user' });
-  if (!context?.session) redirect('/admin');
+  if (!context?.session) redirect('/admin/organizacoes');
 
   const promotionNotification = await getUnreadAdminPromotionNotification();
 
   return (
     <>
-      <AppShell context={context} title="Minha área">
-        {children}
-      </AppShell>
+      <AppShell context={context}>{children}</AppShell>
       {promotionNotification ? (
         <AdminPromotionModal notificationId={promotionNotification.id} />
       ) : null}

@@ -5,6 +5,7 @@ export type SessionPayload = {
   membershipId: string;
   organizationId: string;
   organizationName: string;
+  organizationLogoUrl: string | null;
   loginMode: LoginMode;
   isAdmin: boolean;
   isPrimaryAdmin: boolean;
@@ -18,6 +19,7 @@ export type MembershipSummary = {
   id: string;
   organizationId: string;
   organizationName: string;
+  organizationLogoUrl: string | null;
   inviteCode: string;
   status: 'PENDING' | 'ACTIVE' | 'REJECTED';
   isAdmin: boolean;
