@@ -8,6 +8,7 @@ import {
   authenticateUser,
   buildSessionForMembership,
   createOrganizationForAdmin,
+  createTestMemberForOrganization,
   demoteAdmin,
   joinOrganizationWithInviteCode,
   listActiveMembers,
@@ -39,6 +40,7 @@ import {
   canViewPlans,
 } from '@/modules/auth/permissions';
 import { prisma } from '@/lib/prisma';
+import { isDeveloperEmail } from '@/lib/developer';
 import type { LoginMode } from '@/modules/auth/types';
 
 const registerSchema = z.object({
@@ -76,6 +78,12 @@ const updateOrganizationProfileSchema = z.object({
 
 const joinOrganizationSchema = z.object({
   inviteCode: z.string().trim().min(2, 'Informe o código da organização.'),
+});
+
+const createTestMemberSchema = z.object({
+  name: z.string().trim().min(2, 'Informe o nome do membro.'),
+  email: z.email('Informe um e-mail válido.').transform(normalizeEmail),
+  password: z.string().min(8, 'A senha deve ter pelo menos 8 caracteres.'),
 });
 
 export type { ActionState } from '@/modules/auth/action-errors';
@@ -504,4 +512,58 @@ export async function getAccountPageData() {
   });
 
   return { user, session, organization, canEditProfile };
+}
+
+async function assertDeveloperSession() {
+  const session = await getSessionFromCookies();
+  if (!session || session.loginMode !== 'admin') {
+    return null;
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { id: session.userId },
+    select: { email: true },
+  });
+
+  if (!isDeveloperEmail(user?.email)) {
+    return null;
+  }
+
+  return session;
+}
+
+export async function createTestMemberAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  try {
+    const session = await assertDeveloperSession();
+    if (!session) {
+      return { error: 'Acesso restrito ao desenvolvedor.' };
+    }
+
+    const parsed = createTestMemberSchema.parse({
+      name: formData.get('name'),
+      email: formData.get('email'),
+      password: formData.get('password'),
+    });
+
+    const created = await createTestMemberForOrganization({
+      organizationId: session.organizationId,
+      name: parsed.name,
+      email: parsed.email,
+      password: parsed.password,
+    });
+
+    revalidatePath('/admin/membros');
+    revalidatePath('/admin/dev/membros-teste');
+
+    return {
+      success: created.createdUser
+        ? `Membro ${created.email} criado e ativo em "${session.organizationName}".`
+        : `Conta existente vinculada como membro ativo em "${session.organizationName}".`,
+    };
+  } catch (error) {
+    return handleActionError(error);
+  }
 }

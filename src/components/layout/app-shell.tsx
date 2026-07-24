@@ -10,6 +10,7 @@ import {
   CalendarRange,
   ChevronLeft,
   ChevronRight,
+  FlaskConical,
   LogOut,
   Settings,
   UserRound,
@@ -42,10 +43,19 @@ function buildAdminNav(context: AppShellContext): NavItem[] {
       label: 'Disponibilidade',
       icon: <CalendarDays className="h-4 w-4" />,
     },
-    { href: '/admin/membros', label: 'Membros/Músicos', icon: <Users className="h-4 w-4" /> },
+    { href: '/admin/membros', label: 'Membros', icon: <Users className="h-4 w-4" /> },
     { href: '/admin/eventos', label: 'Eventos', icon: <CalendarRange className="h-4 w-4" /> },
     { href: '/admin/organizacoes', label: 'Organizações', icon: <Building2 className="h-4 w-4" /> },
     { href: '/admin/conta', label: 'Conta', icon: <UserRound className="h-4 w-4" /> },
+    ...(context.isDeveloper
+      ? [
+          {
+            href: '/admin/dev/membros-teste',
+            label: 'Admin',
+            icon: <FlaskConical className="h-4 w-4" />,
+          },
+        ]
+      : []),
   ];
 }
 

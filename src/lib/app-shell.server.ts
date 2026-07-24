@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import { isDeveloperEmail } from '@/lib/developer';
 import { prisma } from '@/lib/prisma';
 import { listMembershipsForUser } from '@/modules/auth/auth.service';
 import { getPendingLoginFromCookies, getSessionFromCookies } from '@/modules/auth/session';
@@ -7,6 +8,7 @@ import type { MembershipSummary, SessionPayload } from '@/modules/auth/types';
 export type AppShellContext = {
   userId: string;
   userEmail: string;
+  isDeveloper: boolean;
   session: SessionPayload | null;
   memberships: MembershipSummary[];
   hasActiveOrganization: boolean;
@@ -33,10 +35,12 @@ export async function getAppShellContext(options?: {
     }),
   ]);
   const hasActiveOrganization = memberships.some((membership) => membership.status === 'ACTIVE');
+  const userEmail = user?.email ?? '';
 
   return {
     userId,
-    userEmail: user?.email ?? '',
+    userEmail,
+    isDeveloper: isDeveloperEmail(userEmail),
     session,
     memberships,
     hasActiveOrganization,

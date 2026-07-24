@@ -94,6 +94,79 @@ export async function joinOrganizationWithInviteCode(input: {
   });
 }
 
+export async function createTestMemberForOrganization(input: {
+  organizationId: string;
+  name: string;
+  email: string;
+  password: string;
+}): Promise<{ userId: string; membershipId: string; email: string; createdUser: boolean }> {
+  const email = normalizeEmail(input.email);
+  const name = input.name.trim();
+
+  if (name.length < 2) {
+    throw new AuthServiceError('VALIDATION', 'Informe o nome do membro.');
+  }
+  if (input.password.length < 8) {
+    throw new AuthServiceError('VALIDATION', 'A senha deve ter pelo menos 8 caracteres.');
+  }
+
+  const organization = await prisma.organization.findUnique({
+    where: { id: input.organizationId },
+    select: { id: true },
+  });
+  if (!organization) {
+    throw new AuthServiceError('ORGANIZATION_NOT_FOUND', 'Organização não encontrada.');
+  }
+
+  let user = await findUserByEmail(email);
+  let createdUser = false;
+
+  if (!user) {
+    const passwordHash = await hashPassword(input.password);
+    user = await prisma.user.create({
+      data: {
+        email,
+        name,
+        passwordHash,
+      },
+    });
+    createdUser = true;
+  }
+
+  const existingMembership = await prisma.membership.findUnique({
+    where: {
+      userId_organizationId: {
+        userId: user.id,
+        organizationId: input.organizationId,
+      },
+    },
+  });
+
+  if (existingMembership) {
+    throw new AuthServiceError(
+      'MEMBERSHIP_ALREADY_EXISTS',
+      'Este e-mail já está vinculado a esta organização.',
+    );
+  }
+
+  const membership = await prisma.membership.create({
+    data: {
+      userId: user.id,
+      organizationId: input.organizationId,
+      status: 'ACTIVE',
+      isAdmin: false,
+      isPrimaryAdmin: false,
+    },
+  });
+
+  return {
+    userId: user.id,
+    membershipId: membership.id,
+    email,
+    createdUser,
+  };
+}
+
 export async function authenticateUser(input: {
   email: string;
   password: string;
