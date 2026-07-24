@@ -1,16 +1,21 @@
 import type { ReactNode } from 'react';
+import { redirect } from 'next/navigation';
 import { AppShell } from '@/components/layout/app-shell';
 import { AdminPromotionModal } from '@/components/notifications/admin-promotion-modal';
 import { getUnreadAdminPromotionNotification } from '@/modules/auth/actions';
-import { requireSession } from '@/lib/auth.server';
+import { getAppShellContext } from '@/lib/app-shell.server';
 
 export default async function AdminLayout({ children }: { children: ReactNode }) {
-  const session = await requireSession({ loginMode: 'admin' });
-  const promotionNotification = await getUnreadAdminPromotionNotification();
+  const context = await getAppShellContext({ loginMode: 'admin' });
+  if (!context) redirect('/login');
+
+  const promotionNotification = context.session
+    ? await getUnreadAdminPromotionNotification()
+    : null;
 
   return (
     <>
-      <AppShell session={session} title="Gerador de Escala">
+      <AppShell context={context} title="Gerador de Escala">
         {children}
       </AppShell>
       {promotionNotification ? (

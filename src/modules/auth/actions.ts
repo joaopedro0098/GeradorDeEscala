@@ -6,7 +6,6 @@ import { z } from 'zod';
 import {
   approveMembership,
   authenticateUser,
-  AuthServiceError,
   buildSessionForMembership,
   createOrganizationForAdmin,
   demoteAdmin,
@@ -19,7 +18,8 @@ import {
   rejectMembership,
   removeMembership,
 } from '@/modules/auth/auth.service';
-import { resolveDefaultContext } from '@/modules/auth/auth-logic';
+import { ActionState, handleActionError } from '@/modules/auth/action-errors';
+import { resolveDefaultContext, normalizeEmail } from '@/modules/auth/auth-logic';
 import {
   clearPendingLoginCookie,
   clearSessionCookie,
@@ -36,12 +36,12 @@ import type { LoginMode } from '@/modules/auth/types';
 
 const registerSchema = z.object({
   name: z.string().trim().min(2, 'Informe seu nome.'),
-  email: z.email('Informe um e-mail válido.'),
+  email: z.email('Informe um e-mail válido.').transform(normalizeEmail),
   password: z.string().min(8, 'A senha deve ter pelo menos 8 caracteres.'),
 });
 
 const loginSchema = z.object({
-  email: z.email('Informe um e-mail válido.'),
+  email: z.email('Informe um e-mail válido.').transform(normalizeEmail),
   password: z.string().min(1, 'Informe sua senha.'),
 });
 
@@ -54,21 +54,22 @@ const joinOrganizationSchema = z.object({
   inviteCode: z.string().trim().min(2, 'Informe o código da organização.'),
 });
 
-export type ActionState = {
-  error?: string;
-  success?: string;
-};
+export type { ActionState } from '@/modules/auth/action-errors';
 
-function mapAuthError(error: unknown): ActionState {
-  if (error instanceof AuthServiceError) {
-    return { error: error.message };
+async function completeLoginForUser(userId: string): Promise<string> {
+  const memberships = await listMembershipsForUser(userId);
+  const result = resolveDefaultContext(userId, memberships);
+
+  await clearPendingLoginCookie();
+
+  if (result.type === 'no_active_organization') {
+    await clearSessionCookie();
+    await setPendingLoginCookie({ userId });
+    return '/admin';
   }
 
-  if (error instanceof z.ZodError) {
-    return { error: error.issues[0]?.message ?? 'Dados inválidos.' };
-  }
-
-  return { error: 'Ocorreu um erro inesperado. Tente novamente.' };
+  await setSessionCookie(result.payload);
+  return getDefaultRedirectForLoginMode(result.payload.loginMode);
 }
 
 async function resolveActingUserId(): Promise<string | null> {
@@ -80,6 +81,8 @@ async function resolveActingUserId(): Promise<string | null> {
 }
 
 export async function registerAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  let redirectTo: string;
+
   try {
     const parsed = registerSchema.parse({
       name: formData.get('name'),
@@ -87,16 +90,18 @@ export async function registerAction(_prev: ActionState, formData: FormData): Pr
       password: formData.get('password'),
     });
 
-    await registerUser(parsed);
-    return {
-      success: 'Conta criada. Faça login para continuar.',
-    };
+    const { userId } = await registerUser(parsed);
+    redirectTo = await completeLoginForUser(userId);
   } catch (error) {
-    return mapAuthError(error);
+    return handleActionError(error);
   }
+
+  redirect(redirectTo);
 }
 
 export async function loginAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  let redirectTo: string;
+
   try {
     const parsed = loginSchema.parse({
       email: formData.get('email'),
@@ -104,30 +109,20 @@ export async function loginAction(_prev: ActionState, formData: FormData): Promi
     });
 
     const { userId } = await authenticateUser(parsed);
-    const memberships = await listMembershipsForUser(userId);
-    const result = resolveDefaultContext(userId, memberships);
-
-    if (result.type === 'no_active_organization') {
-      await clearSessionCookie();
-      await setPendingLoginCookie({ userId });
-      redirect('/organizacoes');
-    }
-
-    await clearPendingLoginCookie();
-    await setSessionCookie(result.payload);
-    redirect(getDefaultRedirectForLoginMode(result.payload.loginMode));
+    redirectTo = await completeLoginForUser(userId);
   } catch (error) {
-    if (error instanceof Error && error.message === 'NEXT_REDIRECT') {
-      throw error;
-    }
-    return mapAuthError(error);
+    return handleActionError(error);
   }
+
+  redirect(redirectTo);
 }
 
 export async function createOrganizationAction(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
+  let redirectTo: string | null = null;
+
   try {
     const session = await getSessionFromCookies();
     const pending = await getPendingLoginFromCookies();
@@ -148,7 +143,6 @@ export async function createOrganizationAction(
       planTier: parsed.planTier,
     });
 
-    // First organization (pending cookie only): adopt the new context.
     if (!session && pending) {
       const payload = await buildSessionForMembership({
         userId,
@@ -157,20 +151,19 @@ export async function createOrganizationAction(
       });
       await clearPendingLoginCookie();
       await setSessionCookie(payload);
-      redirect('/admin');
+      redirectTo = '/admin';
+    } else {
+      revalidatePath('/admin/organizacoes');
+      revalidatePath('/membro/organizacoes');
+      return {
+        success: `Organização "${created.organizationName}" criada. Ela já aparece na lista — troque quando quiser.`,
+      };
     }
-
-    // Additional organization: stay on current context (Instagram-style switch later).
-    revalidatePath('/organizacoes');
-    return {
-      success: `Organização "${created.organizationName}" criada. Ela já aparece na lista — troque quando quiser.`,
-    };
   } catch (error) {
-    if (error instanceof Error && error.message === 'NEXT_REDIRECT') {
-      throw error;
-    }
-    return mapAuthError(error);
+    return handleActionError(error);
   }
+
+  redirect(redirectTo!);
 }
 
 export async function joinOrganizationAction(
@@ -192,12 +185,13 @@ export async function joinOrganizationAction(
       inviteCode: parsed.inviteCode,
     });
 
-    revalidatePath('/organizacoes');
+    revalidatePath('/admin/organizacoes');
+    revalidatePath('/membro/organizacoes');
     return {
       success: 'Solicitação enviada. Aguarde a aprovação de um administrador.',
     };
   } catch (error) {
-    return mapAuthError(error);
+    return handleActionError(error);
   }
 }
 
@@ -211,7 +205,7 @@ export async function switchContextAction(formData: FormData): Promise<void> {
   const loginMode = String(formData.get('loginMode') ?? '') as LoginMode;
 
   if (!membershipId || (loginMode !== 'admin' && loginMode !== 'user')) {
-    redirect('/organizacoes');
+    redirect('/admin/organizacoes');
   }
 
   const payload = await buildSessionForMembership({

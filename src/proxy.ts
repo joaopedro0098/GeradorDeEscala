@@ -1,5 +1,16 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { sessionCookieName, verifySessionToken } from '@/modules/auth/session-token';
+import {
+  createPendingLoginToken,
+  createSessionToken,
+  getAuthCookieOptions,
+  pendingLoginCookieName,
+  pendingLoginMaxAgeSeconds,
+  sessionCookieName,
+  sessionMaxAgeSeconds,
+  verifyPendingLoginToken,
+  verifySessionToken,
+} from '@/modules/auth/session-token';
+import type { SessionPayload } from '@/modules/auth/types';
 
 const publicPaths = ['/login', '/cadastro'];
 
@@ -10,6 +21,10 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
+  if (pathname === '/organizacoes') {
+    return NextResponse.redirect(new URL('/admin/organizacoes', request.url));
+  }
+
   const isAdminRoute = pathname.startsWith('/admin');
   const isMemberRoute = pathname.startsWith('/membro');
 
@@ -18,6 +33,41 @@ export async function proxy(request: NextRequest) {
   }
 
   const token = request.cookies.get(sessionCookieName)?.value;
+  const pendingToken = request.cookies.get(pendingLoginCookieName)?.value;
+
+  if (isAdminRoute) {
+    if (token) {
+      const session = await verifySessionToken(token);
+      if (!session) {
+        return NextResponse.redirect(new URL('/login', request.url));
+      }
+      if (session.loginMode !== 'admin') {
+        return NextResponse.redirect(new URL('/membro', request.url));
+      }
+
+      const response = NextResponse.next();
+      const refreshedToken = await createSessionToken(session);
+      response.cookies.set(sessionCookieName, refreshedToken, getAuthCookieOptions(sessionMaxAgeSeconds));
+      return response;
+    }
+
+    if (pendingToken) {
+      const pending = await verifyPendingLoginToken(pendingToken);
+      if (pending) {
+        const response = NextResponse.next();
+        const refreshedToken = await createPendingLoginToken(pending);
+        response.cookies.set(
+          pendingLoginCookieName,
+          refreshedToken,
+          getAuthCookieOptions(pendingLoginMaxAgeSeconds),
+        );
+        return response;
+      }
+    }
+
+    return NextResponse.redirect(new URL('/login', request.url));
+  }
+
   if (!token) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
@@ -27,17 +77,16 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
-  if (isAdminRoute && session.loginMode !== 'admin') {
-    return NextResponse.redirect(new URL('/membro', request.url));
-  }
-
-  if (isMemberRoute && session.loginMode !== 'user') {
+  if (session.loginMode !== 'user') {
     return NextResponse.redirect(new URL('/admin', request.url));
   }
 
-  return NextResponse.next();
+  const response = NextResponse.next();
+  const refreshedToken = await createSessionToken(session);
+  response.cookies.set(sessionCookieName, refreshedToken, getAuthCookieOptions(sessionMaxAgeSeconds));
+  return response;
 }
 
 export const config = {
-  matcher: ['/admin/:path*', '/membro/:path*'],
+  matcher: ['/admin/:path*', '/membro/:path*', '/organizacoes'],
 };

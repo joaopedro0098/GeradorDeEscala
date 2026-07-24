@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import type { MembershipSummary } from '@/modules/auth/types';
+import { normalizeEmail } from '@/modules/auth/auth-logic';
 
 type MembershipWithOrganization = {
   id: string;
@@ -27,7 +28,7 @@ export function mapMembershipSummary(membership: MembershipWithOrganization): Me
 
 export async function findUserByEmail(email: string) {
   return prisma.user.findUnique({
-    where: { email: email.toLowerCase() },
+    where: { email: normalizeEmail(email) },
   });
 }
 

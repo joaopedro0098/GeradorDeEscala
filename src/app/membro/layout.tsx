@@ -1,16 +1,19 @@
 import type { ReactNode } from 'react';
+import { redirect } from 'next/navigation';
 import { AppShell } from '@/components/layout/app-shell';
 import { AdminPromotionModal } from '@/components/notifications/admin-promotion-modal';
 import { getUnreadAdminPromotionNotification } from '@/modules/auth/actions';
-import { requireSession } from '@/lib/auth.server';
+import { getAppShellContext } from '@/lib/app-shell.server';
 
 export default async function MemberLayout({ children }: { children: ReactNode }) {
-  const session = await requireSession({ loginMode: 'user' });
+  const context = await getAppShellContext({ loginMode: 'user' });
+  if (!context?.session) redirect('/admin');
+
   const promotionNotification = await getUnreadAdminPromotionNotification();
 
   return (
     <>
-      <AppShell session={session} title="Minha área">
+      <AppShell context={context} title="Minha área">
         {children}
       </AppShell>
       {promotionNotification ? (

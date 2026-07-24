@@ -1,6 +1,6 @@
 import { NotificationType, type PlanTier } from '@/generated/prisma/client';
 import { prisma } from '@/lib/prisma';
-import { generateInviteCode } from '@/modules/auth/auth-logic';
+import { generateInviteCode, normalizeEmail } from '@/modules/auth/auth-logic';
 import { hashPassword, verifyPassword } from '@/modules/auth/password';
 import type { LoginMode, SessionPayload } from '@/modules/auth/types';
 import {
@@ -33,23 +33,28 @@ export async function registerUser(input: {
   name: string;
   email: string;
   password: string;
-}): Promise<void> {
-  const email = input.email.toLowerCase();
+}): Promise<{ userId: string }> {
+  const email = normalizeEmail(input.email);
   const existingUser = await findUserByEmail(email);
 
   if (existingUser) {
-    throw new AuthServiceError('EMAIL_ALREADY_EXISTS', 'Este e-mail já está cadastrado.');
+    throw new AuthServiceError(
+      'EMAIL_ALREADY_EXISTS',
+      'Este e-mail já está cadastrado. Faça login.',
+    );
   }
 
   const passwordHash = await hashPassword(input.password);
 
-  await prisma.user.create({
+  const user = await prisma.user.create({
     data: {
       email,
       name: input.name.trim(),
       passwordHash,
     },
   });
+
+  return { userId: user.id };
 }
 
 export async function joinOrganizationWithInviteCode(input: {
@@ -90,7 +95,7 @@ export async function authenticateUser(input: {
   email: string;
   password: string;
 }): Promise<{ userId: string }> {
-  const user = await findUserByEmail(input.email);
+  const user = await findUserByEmail(normalizeEmail(input.email));
   if (!user) {
     throw new AuthServiceError('INVALID_CREDENTIALS', 'E-mail ou senha inválidos.');
   }

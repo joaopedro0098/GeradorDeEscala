@@ -1,0 +1,53 @@
+import { redirect } from 'next/navigation';
+import { listMembershipsForUser } from '@/modules/auth/auth.service';
+import { getPendingLoginFromCookies, getSessionFromCookies } from '@/modules/auth/session';
+import type { MembershipSummary, SessionPayload } from '@/modules/auth/types';
+
+export type AppShellContext = {
+  userId: string;
+  session: SessionPayload | null;
+  memberships: MembershipSummary[];
+  hasActiveOrganization: boolean;
+};
+
+export async function getAppShellContext(options?: {
+  loginMode?: 'admin' | 'user';
+}): Promise<AppShellContext | null> {
+  const session = await getSessionFromCookies();
+  const pending = await getPendingLoginFromCookies();
+  const userId = session?.userId ?? pending?.userId;
+
+  if (!userId) return null;
+
+  if (session && options?.loginMode && session.loginMode !== options.loginMode) {
+    redirect(options.loginMode === 'admin' ? '/membro' : '/admin');
+  }
+
+  const memberships = await listMembershipsForUser(userId);
+  const hasActiveOrganization = memberships.some((membership) => membership.status === 'ACTIVE');
+
+  return {
+    userId,
+    session,
+    memberships,
+    hasActiveOrganization,
+  };
+}
+
+export async function requireOrganizationSession(options?: {
+  loginMode?: 'admin' | 'user';
+}): Promise<SessionPayload> {
+  const session = await getSessionFromCookies();
+
+  if (!session) {
+    const pending = await getPendingLoginFromCookies();
+    if (pending) redirect('/admin');
+    redirect('/login');
+  }
+
+  if (options?.loginMode && session.loginMode !== options.loginMode) {
+    redirect(options.loginMode === 'admin' ? '/membro' : '/admin');
+  }
+
+  return session;
+}

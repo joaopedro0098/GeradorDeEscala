@@ -2,7 +2,17 @@ import { SignJWT, jwtVerify } from 'jose';
 import type { PendingLoginPayload, SessionPayload } from './types';
 
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 7;
-const PENDING_LOGIN_MAX_AGE_SECONDS = 60 * 10;
+const PENDING_LOGIN_MAX_AGE_SECONDS = SESSION_MAX_AGE_SECONDS;
+
+export function getAuthCookieOptions(maxAgeSeconds: number) {
+  return {
+    httpOnly: true,
+    sameSite: 'lax' as const,
+    secure: process.env.NODE_ENV === 'production',
+    path: '/',
+    maxAge: maxAgeSeconds,
+  };
+}
 
 export function getSessionSecretKey(): Uint8Array {
   const secret = process.env.SESSION_SECRET;

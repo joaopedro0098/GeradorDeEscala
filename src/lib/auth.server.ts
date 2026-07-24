@@ -1,12 +1,15 @@
 import { redirect } from 'next/navigation';
 import { getSessionFromCookies } from '@/modules/auth/session';
 import type { SessionPayload } from '@/modules/auth/types';
+import { getPendingLoginFromCookies } from '@/modules/auth/session';
 
 export async function requireSession(options?: {
   loginMode?: 'user' | 'admin';
 }): Promise<SessionPayload> {
   const session = await getSessionFromCookies();
   if (!session) {
+    const pending = await getPendingLoginFromCookies();
+    if (pending) redirect('/admin');
     redirect('/login');
   }
 

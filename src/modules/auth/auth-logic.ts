@@ -44,3 +44,7 @@ export function generateInviteCode(baseName: string): string {
   const suffix = Math.random().toString(36).slice(2, 6).toUpperCase();
   return slug ? `${slug}-${suffix}` : suffix;
 }
+
+export function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase();
+}

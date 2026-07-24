@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolveDefaultContext } from '@/modules/auth/auth-logic';
+import { normalizeEmail, resolveDefaultContext } from '@/modules/auth/auth-logic';
 import type { MembershipSummary } from '@/modules/auth/types';
 
 const baseMembership = (
@@ -11,6 +11,12 @@ const baseMembership = (
   isAdmin: false,
   isPrimaryAdmin: false,
   ...overrides,
+});
+
+describe('normalizeEmail', () => {
+  it('trims whitespace and lowercases the address', () => {
+    expect(normalizeEmail('  Joao@Test.COM  ')).toBe('joao@test.com');
+  });
 });
 
 describe('resolveDefaultContext', () => {
