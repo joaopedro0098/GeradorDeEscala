@@ -41,6 +41,9 @@ export function AppShell({
               <Link href="/admin/configuracoes" className="text-zinc-700 hover:text-zinc-900">
                 Configurações
               </Link>
+              <Link href="/admin/disponibilidade" className="text-zinc-700 hover:text-zinc-900">
+                Disponibilidade
+              </Link>
               <Link href="/admin/membros" className="text-zinc-700 hover:text-zinc-900">
                 Membros/Músicos
               </Link>
@@ -53,7 +56,11 @@ export function AppShell({
                 </Link>
               ) : null}
             </>
-          ) : null}
+          ) : (
+            <Link href="/membro/disponibilidade" className="text-zinc-700 hover:text-zinc-900">
+              Disponibilidade
+            </Link>
+          )}
         </nav>
       </header>
       <main className="mx-auto max-w-5xl px-4 py-8">{children}</main>
