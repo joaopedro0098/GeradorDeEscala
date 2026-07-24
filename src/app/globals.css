@@ -18,6 +18,24 @@
   --input: #e4e4e7;
   --gold: #c99700;
   --gold-foreground: #171717;
+
+  /* App glassmorphism system */
+  --glass-bg: rgba(30, 41, 59, 0.08);
+  --glass-bg-light: rgba(255, 255, 255, 0.55);
+  --glass-border: rgba(148, 163, 184, 0.35);
+  --glass-blur: 16px;
+  --nav-bg: rgba(255, 255, 255, 0.55);
+  --nav-border: transparent;
+  --nav-item-active-bg: #1e293b;
+  --nav-item-active-text: #ffffff;
+  --nav-item-inactive: #1e293b;
+  --btn-primary-bg: #1e293b;
+  --btn-primary-hover: #0f172a;
+  --btn-primary-text: #ffffff;
+  --accent-yellow: #f5b400;
+  --text-primary: #1e293b;
+  --text-secondary: #64748b;
+  --page-bg: #f1f5f9;
 }
 
 @theme inline {
@@ -44,7 +62,7 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root:not(:has(.marketing-shell)) {
+  :root:not(:has(.marketing-shell)):not(:has(.app-shell)) {
     --background: #0a0a0a;
     --foreground: #ededed;
   }
@@ -89,4 +107,50 @@ body {
 .marketing-shell h5,
 .marketing-shell h6 {
   font-family: var(--font-display-marketing, var(--font-geist-sans)), sans-serif;
+}
+
+.app-shell {
+  color-scheme: light;
+  --background: var(--page-bg);
+  --foreground: var(--text-primary);
+  --primary: var(--btn-primary-bg);
+  --primary-foreground: var(--btn-primary-text);
+  --muted-foreground: var(--text-secondary);
+  --border: var(--glass-border);
+  --card: var(--glass-bg-light);
+  background-color: var(--page-bg);
+  color: var(--text-primary);
+}
+
+.app-shell .glass-card {
+  background: var(--glass-bg-light);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  box-shadow: 0 8px 32px -12px rgba(15, 23, 42, 0.16);
+}
+
+.app-shell .glass-panel {
+  background: var(--nav-bg);
+  border-right: none;
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+}
+
+.app-shell .btn-solid {
+  background: var(--btn-primary-bg);
+  color: var(--btn-primary-text);
+}
+
+.app-shell .btn-solid:hover {
+  background: var(--btn-primary-hover);
+}
+
+.app-shell .btn-accent {
+  background: var(--accent-yellow);
+  color: #0f172a;
+}
+
+.app-shell .btn-accent:hover {
+  filter: brightness(0.96);
 }

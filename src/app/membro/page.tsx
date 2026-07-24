@@ -1,11 +1,12 @@
+import { GlassCard } from '@/components/ui/glass-card';
+
 export default function MemberHomePage() {
   return (
-    <section className="rounded-2xl border border-zinc-200 bg-white p-6">
-      <h2 className="text-lg font-semibold text-zinc-900">Área do membro</h2>
-      <p className="mt-2 text-sm text-zinc-600">
-        Marque sua disponibilidade na aba Disponibilidade e consulte a escala publicada na aba
-        Escala.
+    <GlassCard className="glass-card p-6">
+      <h2 className="font-display text-lg font-semibold text-[var(--text-primary)]">Área do membro</h2>
+      <p className="mt-2 text-sm text-[var(--text-secondary)]">
+        Marque sua disponibilidade na aba Disponibilidade e consulte a escala publicada na aba Escala.
       </p>
-    </section>
+    </GlassCard>
   );
 }

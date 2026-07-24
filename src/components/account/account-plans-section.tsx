@@ -1,6 +1,7 @@
 import type { PlanTier, SubscriptionStatus } from '@/generated/prisma/client';
 import { PricingSection } from '@/components/marketing/pricing-section';
 import { TrialProgressBar } from '@/components/account/trial-progress-bar';
+import { GlassCard } from '@/components/ui/glass-card';
 import { getPlanDefinition } from '@/modules/organizations/plans';
 import {
   getTrialProgress,
@@ -29,28 +30,34 @@ export function AccountPlansSection({
       ) : null}
 
       {showSubscribeMessage ? (
-        <section className="rounded-2xl border border-amber-200 bg-amber-50 p-6">
-          <h2 className="text-lg font-semibold text-amber-950">Assine um plano para continuar usando</h2>
-          <p className="mt-2 text-sm text-amber-900">
+        <GlassCard className="glass-card p-6">
+          <h2 className="font-display text-lg font-semibold text-[var(--text-primary)]">
+            Assine um plano para continuar usando
+          </h2>
+          <p className="mt-2 text-sm text-[var(--text-secondary)]">
             O período de teste terminou. Escolha um plano abaixo para voltar a gerar escalas.
             (Pagamento via Stripe será habilitado em breve.)
           </p>
-        </section>
+        </GlassCard>
       ) : (
-        <section className="rounded-2xl border border-zinc-200 bg-white p-6">
-          <h2 className="text-lg font-semibold text-zinc-900">Plano atual</h2>
-          <p className="mt-2 text-sm text-zinc-600">
-            Organização <span className="font-medium text-zinc-900">{organization.name}</span> está no plano{' '}
-            <span className="font-medium text-zinc-900">{currentPlan.name}</span> ({currentPlan.priceLabel}).
+        <GlassCard className="glass-card p-6">
+          <h2 className="font-display text-lg font-semibold text-[var(--text-primary)]">Plano atual</h2>
+          <p className="mt-2 text-sm text-[var(--text-secondary)]">
+            Organização <span className="font-medium text-[var(--text-primary)]">{organization.name}</span>{' '}
+            está no plano{' '}
+            <span className="font-medium text-[var(--text-primary)]">{currentPlan.name}</span> (
+            {currentPlan.priceLabel}).
           </p>
-        </section>
+        </GlassCard>
       )}
 
-      <PricingSection
-        highlightTier={organization.planTier}
-        title="Planos"
-        subtitle="Valores mensais ilustrativos. A cobrança real será integrada com Stripe."
-      />
+      <GlassCard className="glass-card p-6">
+        <PricingSection
+          highlightTier={organization.planTier}
+          title="Planos"
+          subtitle="Valores mensais ilustrativos. A cobrança real será integrada com Stripe."
+        />
+      </GlassCard>
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { useActionState } from 'react';
 import { CreateOrganizationForm } from '@/components/account/create-organization-form';
 import { joinOrganizationAction, switchContextAction, type ActionState } from '@/modules/auth/actions';
 import { Alert, Field, PrimaryButton } from '@/components/auth/auth-ui';
+import { GlassCard } from '@/components/ui/glass-card';
 import type { MembershipSummary, SessionPayload } from '@/modules/auth/types';
 
 function roleLabel(membership: MembershipSummary): string {
@@ -21,7 +22,7 @@ function OrganizationList({
 }) {
   if (memberships.length === 0) {
     return (
-      <p className="rounded-xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-5 text-sm text-zinc-600">
+      <p className="rounded-xl border border-dashed border-[var(--glass-border)] bg-white/30 px-4 py-5 text-sm text-[var(--text-secondary)]">
         Nenhuma participação ainda. Crie uma organização abaixo ou entre com um código de convite.
       </p>
     );
@@ -38,14 +39,16 @@ function OrganizationList({
         return (
           <li
             key={membership.id}
-            className={`rounded-xl border bg-white px-4 py-3 ${
-              isCurrent ? 'border-zinc-900' : 'border-zinc-200'
+            className={`rounded-xl border px-4 py-3 backdrop-blur-sm ${
+              isCurrent
+                ? 'border-[var(--btn-primary-bg)]/30 bg-white/70'
+                : 'border-[var(--glass-border)] bg-white/40'
             }`}
           >
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <p className="font-medium text-zinc-900">{membership.organizationName}</p>
-                <p className="mt-0.5 text-xs text-zinc-500">
+                <p className="font-medium text-[var(--text-primary)]">{membership.organizationName}</p>
+                <p className="mt-0.5 text-xs text-[var(--text-secondary)]">
                   {roleLabel(membership)}
                   {membership.isAdmin ? ' · também pode entrar como membro' : ''}
                   {isPending ? ' · Aguardando aprovação' : ''}
@@ -62,7 +65,7 @@ function OrganizationList({
                       <input type="hidden" name="loginMode" value="admin" />
                       <button
                         type="submit"
-                        className="rounded-lg bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white"
+                        className="btn-solid rounded-lg px-3 py-1.5 text-xs font-medium"
                       >
                         Entrar como Admin
                       </button>
@@ -73,7 +76,7 @@ function OrganizationList({
                     <input type="hidden" name="loginMode" value="user" />
                     <button
                       type="submit"
-                      className="rounded-lg border border-zinc-300 px-3 py-1.5 text-xs font-medium text-zinc-800"
+                      className="rounded-lg border border-[var(--glass-border)] bg-white/50 px-3 py-1.5 text-xs font-medium text-[var(--text-primary)] backdrop-blur-sm hover:bg-white/80"
                     >
                       {membership.isAdmin ? 'Entrar como Membro' : 'Trocar para esta'}
                     </button>
@@ -92,9 +95,9 @@ function JoinOrganizationPanel() {
   const [state, formAction] = useActionState<ActionState, FormData>(joinOrganizationAction, {});
 
   return (
-    <section className="rounded-xl border border-zinc-200 bg-zinc-50 p-4">
-      <h3 className="text-sm font-medium text-zinc-900">Entrar com código</h3>
-      <p className="mt-1 text-xs text-zinc-600">
+    <GlassCard className="glass-card p-5">
+      <h3 className="font-display text-sm font-semibold text-[var(--text-primary)]">Entrar com código</h3>
+      <p className="mt-1 text-xs text-[var(--text-secondary)]">
         Use o código de convite. A entrada fica pendente até um administrador aprovar.
       </p>
       <form action={formAction} className="mt-4 space-y-3">
@@ -111,7 +114,7 @@ function JoinOrganizationPanel() {
           <Alert message={state.success} tone="success" />
         </div>
       ) : null}
-    </section>
+    </GlassCard>
   );
 }
 
@@ -122,19 +125,22 @@ export function OrganizationsPageClient({
   session: SessionPayload | null;
   memberships: MembershipSummary[];
 }) {
-  const isFirstOrganization = !session && !memberships.some((membership) => membership.status === 'ACTIVE');
+  const isFirstOrganization =
+    !session && !memberships.some((membership) => membership.status === 'ACTIVE');
 
   return (
     <div className="space-y-6">
-      <section className="rounded-2xl border border-zinc-200 bg-white p-6">
-        <h2 className="text-lg font-semibold text-zinc-900">Suas organizações</h2>
-        <p className="mt-1 text-sm text-zinc-600">
+      <GlassCard className="glass-card p-6">
+        <h2 className="font-display text-lg font-semibold text-[var(--text-primary)]">
+          Suas organizações
+        </h2>
+        <p className="mt-1 text-sm text-[var(--text-secondary)]">
           Troque de contexto no estilo perfil. Criar uma nova organização não troca automaticamente.
         </p>
         <div className="mt-4">
           <OrganizationList memberships={memberships} currentMembershipId={session?.membershipId} />
         </div>
-      </section>
+      </GlassCard>
 
       <CreateOrganizationForm isFirstOrganization={isFirstOrganization} />
       <JoinOrganizationPanel />

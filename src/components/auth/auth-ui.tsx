@@ -69,7 +69,7 @@ export function PrimaryButton({ label }: { label: string }) {
   return (
     <button
       type="submit"
-      className="w-full rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/20 transition-all hover:bg-primary/90 hover:shadow-primary/30"
+      className="w-full rounded-xl bg-[var(--btn-primary-bg)] px-4 py-3 text-sm font-semibold text-[var(--btn-primary-text)] shadow-md transition hover:bg-[var(--btn-primary-hover)]"
     >
       {label}
     </button>
