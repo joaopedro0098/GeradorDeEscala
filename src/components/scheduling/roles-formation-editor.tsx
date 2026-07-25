@@ -4,15 +4,15 @@ import { useEffect, useMemo, useState, useTransition } from 'react';
 import {
   createRoleAction,
   deleteRoleAction,
-  saveDayFormationAction,
 } from '@/modules/scheduling/actions';
 import { Alert, Field, PrimaryButton } from '@/components/auth/auth-ui';
+import { DayFormationPriorityList } from '@/components/scheduling/day-formation-priority-list';
 import { showSuccessToast, useToastActionState } from '@/components/ui/success-toast';
 import { getDayOfWeekFromDateKey } from '@/modules/scheduling/configuration.logic';
 import {
-  DAY_OF_WEEK_LABELS,
   DAY_OF_WEEK_ORDER,
   type DayRequirementSummary,
+  type PriorityRoleSummary,
   type RoleSummary,
 } from '@/modules/scheduling/types';
 import type { YearMonth } from '@/modules/scheduling/working-month.logic';
@@ -46,11 +46,13 @@ function weekdaysFromWorkingMonthEvents(
 export function RolesAndFormationEditor({
   roles,
   dayRequirements,
+  priorityRoles,
   eventDates,
   workingMonth,
 }: {
   roles: RoleSummary[];
   dayRequirements: DayRequirementSummary[];
+  priorityRoles: PriorityRoleSummary[];
   eventDates: string[];
   workingMonth: YearMonth;
 }) {
@@ -70,6 +72,15 @@ export function RolesAndFormationEditor({
       current && activeWeekdays.includes(current) ? current : activeWeekdays[0],
     );
   }, [activeWeekdays]);
+
+  const orderedPriorityRoles = useMemo(() => {
+    if (priorityRoles.length > 0) return priorityRoles;
+    return roles.map((role, index) => ({
+      roleId: role.id,
+      roleName: role.name,
+      sortOrder: index + 1,
+    }));
+  }, [priorityRoles, roles]);
 
   return (
     <div className="space-y-6">
@@ -127,10 +138,12 @@ export function RolesAndFormationEditor({
           </div>
         ) : null}
 
-        <h2 className="text-lg font-semibold text-zinc-900">Formação por dia da semana</h2>
+        <h2 className="text-lg font-semibold text-zinc-900">
+          Formação por dia da semana e prioridade
+        </h2>
         <p className="mt-1 text-sm text-zinc-600">
-          Defina quantas pessoas são necessárias em cada função. A configuração vale para todas as
-          ocorrências daquele dia no calendário.
+          Arraste para definir a prioridade das funções (1 = mais prioritária). Use o lápis para
+          informar quantas pessoas ocupam cada função neste dia da semana.
         </p>
 
         {activeWeekdays.length === 0 ? (
@@ -141,10 +154,10 @@ export function RolesAndFormationEditor({
           <p className="mt-4 text-sm text-zinc-600">Cadastre ao menos uma função acima.</p>
         ) : selectedDay ? (
           <div className="mt-4">
-            <DayFormationBlock
+            <DayFormationPriorityList
               key={selectedDay}
               dayOfWeek={selectedDay}
-              roles={roles}
+              priorityRoles={orderedPriorityRoles}
               dayRequirements={dayRequirements.filter((item) => item.dayOfWeek === selectedDay)}
             />
           </div>
@@ -171,62 +184,5 @@ function DeleteRoleButton({ roleId }: { roleId: string }) {
     >
       remover
     </button>
-  );
-}
-
-function DayFormationBlock({
-  dayOfWeek,
-  roles,
-  dayRequirements,
-}: {
-  dayOfWeek: DayOfWeek;
-  roles: RoleSummary[];
-  dayRequirements: DayRequirementSummary[];
-}) {
-  const requirementMap = new Map(dayRequirements.map((item) => [item.roleId, item.quantity]));
-  const [saveState, saveAction] = useToastActionState(saveDayFormationAction, {});
-
-  return (
-    <form action={saveAction} className="rounded-xl border border-zinc-100 p-4">
-      <input type="hidden" name="dayOfWeek" value={dayOfWeek} />
-      <h3 className="font-medium text-zinc-900">{DAY_OF_WEEK_LABELS[dayOfWeek]}</h3>
-      <div className="mt-3 space-y-3">
-        {roles.map((role) => (
-          <label key={role.id} className="block text-sm text-zinc-700">
-            {role.name}
-            <input type="hidden" name="roleId" value={role.id} />
-            <input
-              name={`quantity_${role.id}`}
-              type="number"
-              min={0}
-              step={1}
-              inputMode="numeric"
-              pattern="[0-9]*"
-              defaultValue={requirementMap.get(role.id) ?? 0}
-              onKeyDown={(event) => {
-                if (['e', 'E', '+', '-', '.', ','].includes(event.key)) {
-                  event.preventDefault();
-                }
-              }}
-              onInput={(event) => {
-                const input = event.currentTarget;
-                const digits = input.value.replace(/\D/g, '');
-                input.value = digits === '' ? '' : String(Number(digits));
-              }}
-              onBlur={(event) => {
-                const input = event.currentTarget;
-                const value = Number.parseInt(input.value, 10);
-                input.value = String(Number.isFinite(value) && value >= 0 ? value : 0);
-              }}
-              className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2"
-            />
-          </label>
-        ))}
-      </div>
-      <div className="mt-4 flex flex-wrap items-center gap-3">
-        <PrimaryButton label="Salvar formação" fullWidth={false} />
-        {saveState.error ? <Alert message={saveState.error} tone="error" /> : null}
-      </div>
-    </form>
   );
 }

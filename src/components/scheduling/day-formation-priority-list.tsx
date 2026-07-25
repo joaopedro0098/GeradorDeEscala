@@ -1,14 +1,25 @@
 'use client';
 
-import { useEffect, useRef, useState, useTransition, type PointerEvent as ReactPointerEvent } from 'react';
-import { setPriorityRoleOrderAction } from '@/modules/scheduling/actions';
+import {
+  useEffect,
+  useRef,
+  useState,
+  useTransition,
+  type PointerEvent as ReactPointerEvent,
+} from 'react';
+import { Pencil } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import {
+  saveDayRoleQuantityAction,
+  setPriorityRoleOrderAction,
+} from '@/modules/scheduling/actions';
 import { showSuccessToast } from '@/components/ui/success-toast';
-import type { PriorityRoleSummary } from '@/modules/scheduling/types';
+import type { DayRequirementSummary, PriorityRoleSummary } from '@/modules/scheduling/types';
+import type { DayOfWeek } from '@/generated/prisma/client';
 
 type DragState = {
   roleId: string;
   fromIndex: number;
-  /** Gap in the full list (including the dragged item): 0..length */
   insertAt: number;
   grabOffsetX: number;
   grabOffsetY: number;
@@ -68,10 +79,25 @@ function buildVisualRows(items: PriorityRoleSummary[], drag: DragState | null): 
   return rows;
 }
 
-export function PriorityRolesList({ priorityRoles }: { priorityRoles: PriorityRoleSummary[] }) {
+export function DayFormationPriorityList({
+  dayOfWeek,
+  priorityRoles,
+  dayRequirements,
+}: {
+  dayOfWeek: DayOfWeek;
+  priorityRoles: PriorityRoleSummary[];
+  dayRequirements: DayRequirementSummary[];
+}) {
+  const router = useRouter();
   const [items, setItems] = useState(priorityRoles);
+  const [quantities, setQuantities] = useState(() =>
+    Object.fromEntries(dayRequirements.map((item) => [item.roleId, item.quantity])),
+  );
+  const [editingRoleId, setEditingRoleId] = useState<string | null>(null);
+  const [draftQuantity, setDraftQuantity] = useState('0');
   const [drag, setDrag] = useState<DragState | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
   const itemRowRefs = useRef<Map<number, HTMLElement>>(new Map());
   const dragRef = useRef<DragState | null>(null);
   const itemsRef = useRef(items);
@@ -79,6 +105,12 @@ export function PriorityRolesList({ priorityRoles }: { priorityRoles: PriorityRo
   useEffect(() => {
     setItems(priorityRoles);
   }, [priorityRoles]);
+
+  useEffect(() => {
+    setQuantities(
+      Object.fromEntries(dayRequirements.map((item) => [item.roleId, item.quantity])),
+    );
+  }, [dayRequirements]);
 
   useEffect(() => {
     dragRef.current = drag;
@@ -122,13 +154,16 @@ export function PriorityRolesList({ priorityRoles }: { priorityRoles: PriorityRo
 
     const next = reorderByGap(itemsRef.current, fromIndex, insertAt);
     setItems(next);
+    setError(null);
     startTransition(async () => {
       const result = await setPriorityRoleOrderAction(next.map((item) => item.roleId));
       if (result.error) {
         setItems(priorityRoles);
+        setError(result.error);
         return;
       }
       showSuccessToast();
+      router.refresh();
     });
   }
 
@@ -169,6 +204,9 @@ export function PriorityRolesList({ priorityRoles }: { priorityRoles: PriorityRo
     index: number,
   ) {
     if (event.button !== 0) return;
+    const target = event.target as HTMLElement;
+    if (target.closest('[data-no-drag]')) return;
+    if (editingRoleId) return;
     event.preventDefault();
 
     const rect = event.currentTarget.getBoundingClientRect();
@@ -187,19 +225,47 @@ export function PriorityRolesList({ priorityRoles }: { priorityRoles: PriorityRo
     setDrag(nextDrag);
   }
 
+  function startEdit(roleId: string) {
+    setEditingRoleId(roleId);
+    setDraftQuantity(String(quantities[roleId] ?? 0));
+    setError(null);
+  }
+
+  function cancelEdit() {
+    setEditingRoleId(null);
+    setDraftQuantity('0');
+  }
+
+  function saveQuantity(roleId: string) {
+    const quantity = Number.parseInt(draftQuantity.replace(/\D/g, ''), 10);
+    const nextQuantity = Number.isFinite(quantity) && quantity >= 0 ? quantity : 0;
+    setError(null);
+    startTransition(async () => {
+      const result = await saveDayRoleQuantityAction(dayOfWeek, roleId, nextQuantity);
+      if (result.error) {
+        setError(result.error);
+        return;
+      }
+      setQuantities((current) => ({ ...current, [roleId]: nextQuantity }));
+      setEditingRoleId(null);
+      showSuccessToast();
+      router.refresh();
+    });
+  }
+
   const floatingItem = drag ? items.find((item) => item.roleId === drag.roleId) : null;
   const visualRows = buildVisualRows(items, drag);
 
   if (items.length === 0) {
     return (
-      <p className="mt-4 text-sm text-zinc-600">
-        Cadastre funções em Funções & Formação — elas passam a aparecer aqui automaticamente.
+      <p className="text-sm text-zinc-600">
+        Cadastre funções acima — elas passam a aparecer aqui automaticamente.
       </p>
     );
   }
 
   return (
-    <div className="mt-4 w-full max-w-[min(100%,22rem)] sm:max-w-[50%]">
+    <div className="w-full max-w-[min(100%,28rem)]">
       <ul>
         {visualRows.map((row, visualIndex) => {
           if (row.kind === 'blank' && drag) {
@@ -221,6 +287,9 @@ export function PriorityRolesList({ priorityRoles }: { priorityRoles: PriorityRo
           }
 
           if (row.kind !== 'item') return null;
+
+          const quantity = quantities[row.item.roleId] ?? 0;
+          const isEditing = editingRoleId === row.item.roleId;
 
           return (
             <li
@@ -255,9 +324,64 @@ export function PriorityRolesList({ priorityRoles }: { priorityRoles: PriorityRo
                     <span className="h-0.5 w-full rounded bg-zinc-500" />
                     <span className="h-0.5 w-full rounded bg-zinc-500" />
                   </span>
-                  <span className="truncate text-sm font-medium text-zinc-800">
+                  <span className="min-w-0 flex-1 truncate text-sm font-medium text-zinc-800">
                     {row.item.roleName}
                   </span>
+
+                  {isEditing ? (
+                    <div data-no-drag className="flex shrink-0 items-center gap-1.5">
+                      <input
+                        type="number"
+                        min={0}
+                        step={1}
+                        inputMode="numeric"
+                        value={draftQuantity}
+                        disabled={isPending}
+                        onChange={(event) => {
+                          const digits = event.target.value.replace(/\D/g, '');
+                          setDraftQuantity(digits === '' ? '' : String(Number(digits)));
+                        }}
+                        onKeyDown={(event) => {
+                          if (['e', 'E', '+', '-', '.', ','].includes(event.key)) {
+                            event.preventDefault();
+                          }
+                          if (event.key === 'Enter') {
+                            event.preventDefault();
+                            saveQuantity(row.item.roleId);
+                          }
+                          if (event.key === 'Escape') {
+                            event.preventDefault();
+                            cancelEdit();
+                          }
+                        }}
+                        className="w-14 rounded-lg border border-zinc-300 px-2 py-1 text-sm tabular-nums outline-none focus:border-zinc-400 focus:ring-2 focus:ring-zinc-200"
+                        aria-label={`Quantidade de ${row.item.roleName}`}
+                      />
+                      <button
+                        type="button"
+                        disabled={isPending}
+                        onClick={() => saveQuantity(row.item.roleId)}
+                        className="rounded-lg bg-zinc-900 px-2.5 py-1 text-xs font-medium text-white disabled:opacity-60"
+                      >
+                        Salvar
+                      </button>
+                    </div>
+                  ) : (
+                    <div data-no-drag className="flex shrink-0 items-center gap-1.5">
+                      <span className="rounded-md bg-zinc-100 px-2 py-0.5 text-xs font-medium tabular-nums text-zinc-600">
+                        {quantity}
+                      </span>
+                      <button
+                        type="button"
+                        disabled={isPending}
+                        onClick={() => startEdit(row.item.roleId)}
+                        className="grid h-8 w-8 place-items-center rounded-lg text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-900 disabled:opacity-60"
+                        aria-label={`Editar quantidade de ${row.item.roleName}`}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             </li>
@@ -287,6 +411,8 @@ export function PriorityRolesList({ priorityRoles }: { priorityRoles: PriorityRo
           <span className="truncate text-sm font-medium text-zinc-800">{floatingItem.roleName}</span>
         </div>
       ) : null}
+
+      {error ? <p className="mt-3 text-sm text-red-700">{error}</p> : null}
     </div>
   );
 }

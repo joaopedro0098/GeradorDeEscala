@@ -19,6 +19,7 @@ import {
   setParticipationMinimum,
   setPriorityRoleOrder,
   toggleEventDate,
+  upsertDayRequirement,
   upsertDayRequirementsForDay,
   upsertIntervalRule,
 } from '@/modules/scheduling/configuration.service';
@@ -187,6 +188,27 @@ export async function saveDayFormationAction(
     });
     revalidateConfiguration();
     return { success: 'Formação salva.' };
+  } catch (error) {
+    return mapError(error);
+  }
+}
+
+export async function saveDayRoleQuantityAction(
+  dayOfWeek: DayOfWeek,
+  roleId: string,
+  quantity: number,
+): Promise<{ error?: string }> {
+  try {
+    const session = await requireAdminSession();
+    const parsedQuantity = z.coerce.number().int().min(0).parse(quantity);
+    await upsertDayRequirement({
+      organizationId: session.organizationId,
+      dayOfWeek,
+      roleId,
+      quantity: parsedQuantity,
+    });
+    revalidateConfiguration();
+    return {};
   } catch (error) {
     return mapError(error);
   }

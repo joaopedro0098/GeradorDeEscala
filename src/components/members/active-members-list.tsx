@@ -57,9 +57,20 @@ export function ActiveMembersList({
             >
               <span className="flex min-w-0 items-center gap-2 py-0.5">
                 <span className="truncate text-sm font-medium text-zinc-900">{member.name}</span>
-                <span className="shrink-0 text-xs text-zinc-400">
-                  {member.isPrimaryAdmin ? 'Admin principal' : member.isAdmin ? 'Admin' : 'Membro'}
-                </span>
+                {member.isPrimaryAdmin || member.isAdmin ? (
+                  <span className="shrink-0 text-xs text-zinc-400">
+                    {member.isPrimaryAdmin ? 'Admin principal' : 'Admin'}
+                  </span>
+                ) : null}
+                {member.rolePreferences.length > 0 ? (
+                  <span className="min-w-0 truncate text-xs text-zinc-400">
+                    {member.rolePreferences
+                      .slice()
+                      .sort((a, b) => a.sortOrder - b.sortOrder)
+                      .map((preference) => preference.name)
+                      .join(' / ')}
+                  </span>
+                ) : null}
               </span>
             </button>
           </li>

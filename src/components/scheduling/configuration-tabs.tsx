@@ -59,6 +59,7 @@ export function ConfigurationTabs({
           <RolesAndFormationEditor
             roles={configuration.roles}
             dayRequirements={configuration.dayRequirements}
+            priorityRoles={configuration.priorityRoles}
             eventDates={configuration.events.map((event) => event.date)}
             workingMonth={workingMonth}
           />
@@ -67,7 +68,6 @@ export function ConfigurationTabs({
         {activeTab === 'rules' ? (
           <ScheduleRulesEditor
             generalIntervalRule={configuration.generalIntervalRule}
-            priorityRoles={configuration.priorityRoles}
             participationMinimumDays={configuration.participationMinimumDays}
           />
         ) : null}

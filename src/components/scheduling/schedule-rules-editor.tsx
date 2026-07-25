@@ -5,21 +5,17 @@ import {
   saveParticipationMinimumAction,
 } from '@/modules/scheduling/actions';
 import { Alert, Field, PrimaryButton } from '@/components/auth/auth-ui';
-import { PriorityRolesList } from '@/components/scheduling/priority-roles-list';
 import { useToastActionState } from '@/components/ui/success-toast';
 import {
   INTERVAL_COUNT_MODE_LABELS,
   type IntervalRuleSummary,
-  type PriorityRoleSummary,
 } from '@/modules/scheduling/types';
 
 export function ScheduleRulesEditor({
   generalIntervalRule,
-  priorityRoles,
   participationMinimumDays,
 }: {
   generalIntervalRule: IntervalRuleSummary | null;
-  priorityRoles: PriorityRoleSummary[];
   participationMinimumDays: number | null;
 }) {
   const [generalState, generalAction] = useToastActionState(saveGeneralIntervalRuleAction, {});
@@ -83,15 +79,6 @@ export function ScheduleRulesEditor({
             <PrimaryButton label="Salvar mínimo" fullWidth={false} />
           </div>
         </form>
-      </section>
-
-      <section className="rounded-2xl border border-zinc-200 bg-white p-6">
-        <h2 className="text-lg font-semibold text-zinc-900">Alta prioridade</h2>
-        <p className="mt-1 text-sm text-zinc-600">
-          Arraste para definir a ordem das funções essenciais (1 = mais prioritária). Toda função
-          cadastrada aparece aqui automaticamente.
-        </p>
-        <PriorityRolesList priorityRoles={priorityRoles} />
       </section>
     </div>
   );
