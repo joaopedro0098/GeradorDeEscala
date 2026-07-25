@@ -19,17 +19,19 @@ import {
   setParticipationMinimum,
   setPriorityRoleOrder,
   toggleEventDate,
-  upsertDayRequirement,
+  upsertDayRequirementsForDay,
   upsertIntervalRule,
 } from '@/modules/scheduling/configuration.service';
 import {
   generateSchedule,
+  getAvailabilityLocked,
   getAssignmentCandidatesForAdmin,
   getPreGenerationShortagePreview,
   getScheduleOverviewForAdmin,
   getScheduleOverviewForMember,
   publishSchedule,
   ScheduleServiceError,
+  setAvailabilityLocked,
   setScheduleSlotAssignment,
   setScheduleSlotMinister,
   undoLastGeneration,
@@ -162,38 +164,31 @@ export async function deleteRoleAction(roleId: string): Promise<void> {
   }
 }
 
-export async function saveDayRequirementAction(formData: FormData): Promise<void> {
+export async function saveDayFormationAction(
+  _prev: { error?: string; success?: string },
+  formData: FormData,
+): Promise<{ error?: string; success?: string }> {
   try {
     const session = await requireAdminSession();
-    const parsed = z
-      .object({
-        dayOfWeek: z.enum([
-          'SUNDAY',
-          'MONDAY',
-          'TUESDAY',
-          'WEDNESDAY',
-          'THURSDAY',
-          'FRIDAY',
-          'SATURDAY',
-        ]),
-        roleId: z.string().min(1),
-        quantity: z.coerce.number().int().min(0),
-      })
-      .parse({
-        dayOfWeek: formData.get('dayOfWeek'),
-        roleId: formData.get('roleId'),
-        quantity: formData.get('quantity'),
-      });
+    const dayOfWeek = z
+      .enum(['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'])
+      .parse(formData.get('dayOfWeek'));
 
-    await upsertDayRequirement({
+    const roleIds = formData.getAll('roleId').map(String);
+    const requirements = roleIds.map((roleId) => ({
+      roleId,
+      quantity: z.coerce.number().int().min(0).parse(formData.get(`quantity_${roleId}`)),
+    }));
+
+    await upsertDayRequirementsForDay({
       organizationId: session.organizationId,
-      dayOfWeek: parsed.dayOfWeek as DayOfWeek,
-      roleId: parsed.roleId,
-      quantity: parsed.quantity,
+      dayOfWeek: dayOfWeek as DayOfWeek,
+      requirements,
     });
     revalidateConfiguration();
+    return { success: 'Formação salva.' };
   } catch (error) {
-    console.error(mapError(error).error);
+    return mapError(error);
   }
 }
 
@@ -330,7 +325,7 @@ export async function getAdminSchedulePageData(requested: YearMonth | null) {
 
   const subscriptionCheck = canGenerateScheduleForOrganization(organization);
 
-  const [overview, shortagePreview, assignmentCandidates] = await Promise.all([
+  const [overview, shortagePreview, assignmentCandidates, availabilityLocked] = await Promise.all([
     getScheduleOverviewForAdmin(session.organizationId, viewedMonth.year, viewedMonth.month),
     isHistory
       ? Promise.resolve([])
@@ -338,6 +333,7 @@ export async function getAdminSchedulePageData(requested: YearMonth | null) {
     isHistory
       ? Promise.resolve([])
       : getAssignmentCandidatesForAdmin(session.organizationId, viewedMonth.year, viewedMonth.month),
+    getAvailabilityLocked(session.organizationId, viewedMonth.year, viewedMonth.month),
   ]);
 
   return {
@@ -345,6 +341,7 @@ export async function getAdminSchedulePageData(requested: YearMonth | null) {
     overview,
     shortagePreview,
     assignmentCandidates,
+    availabilityLocked: overview?.availabilityLocked ?? availabilityLocked,
     workingMonth,
     viewedMonth,
     isHistory,
@@ -362,6 +359,7 @@ export async function getMemberSchedulePageData(requested: YearMonth | null) {
     viewedMonth.year,
     viewedMonth.month,
   );
+
   return {
     session,
     overview,
@@ -402,6 +400,22 @@ export async function publishScheduleAction(): Promise<{ error?: string; success
     await publishSchedule(session.organizationId, year, month);
     revalidateSchedule(year, month);
     return { success: 'Escala publicada.' };
+  } catch (error) {
+    return mapError(error);
+  }
+}
+
+export async function setAvailabilityLockedAction(
+  availabilityLocked: boolean,
+): Promise<{ error?: string; success?: string }> {
+  try {
+    const session = await requireAdminSession();
+    const { year, month } = await getWorkingMonth(session.organizationId);
+    await setAvailabilityLocked(session.organizationId, year, month, availabilityLocked);
+    revalidateSchedule(year, month);
+    revalidatePath('/membro/disponibilidade');
+    revalidatePath('/admin/disponibilidade');
+    return { success: 'Salvo com sucesso' };
   } catch (error) {
     return mapError(error);
   }

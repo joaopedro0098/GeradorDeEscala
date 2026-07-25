@@ -3,6 +3,7 @@
 import { useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { setWorkingMonthAction, toggleEventDateAction } from '@/modules/scheduling/actions';
+import { showSuccessToast } from '@/components/ui/success-toast';
 import { buildMonthGrid } from '@/modules/scheduling/configuration.logic';
 import {
   compareYearMonth,
@@ -50,6 +51,7 @@ export function EventCalendar({
         setError(result.error);
         return;
       }
+      showSuccessToast();
       router.refresh();
     });
   }

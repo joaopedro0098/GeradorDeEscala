@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition, type PointerEvent as ReactPointerEvent } from 'react';
 import { setPriorityRoleOrderAction } from '@/modules/scheduling/actions';
+import { showSuccessToast } from '@/components/ui/success-toast';
 import type { PriorityRoleSummary } from '@/modules/scheduling/types';
 
 type DragState = {
@@ -125,7 +126,9 @@ export function PriorityRolesList({ priorityRoles }: { priorityRoles: PriorityRo
       const result = await setPriorityRoleOrderAction(next.map((item) => item.roleId));
       if (result.error) {
         setItems(priorityRoles);
+        return;
       }
+      showSuccessToast();
     });
   }
 

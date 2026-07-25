@@ -1,9 +1,15 @@
 'use client';
 
-import { useMemo, useState, useTransition } from 'react';
+import { useEffect, useMemo, useState, useTransition } from 'react';
 import { MoreHorizontal, Search, X } from 'lucide-react';
 import { demoteAdminAction, promoteMemberAction } from '@/modules/auth/actions';
 import { RemoveMemberButton } from '@/components/members/remove-member-button';
+import {
+  MemberRolePreferencesEditor,
+  type MemberRolePreferenceItem,
+  type OrgRoleOption,
+} from '@/components/members/member-role-preferences-editor';
+import { showSuccessToast } from '@/components/ui/success-toast';
 
 const PAGE_SIZE = 20;
 
@@ -13,42 +19,48 @@ type ActiveMember = {
   email: string;
   isAdmin: boolean;
   isPrimaryAdmin: boolean;
-  rolePreferences: { id: string; name: string; sortOrder: number }[];
+  rolePreferences: MemberRolePreferenceItem[];
   groupName: string | null;
 };
 
 export function ActiveMembersList({
   members,
+  availableRoles,
   canManageAdmins,
   sessionMembershipId,
 }: {
   members: ActiveMember[];
+  availableRoles: OrgRoleOption[];
   canManageAdmins: boolean;
   sessionMembershipId: string;
 }) {
   const [visible, setVisible] = useState(PAGE_SIZE);
-  const [selectedMember, setSelectedMember] = useState<ActiveMember | null>(null);
+  const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
   const shown = members.slice(0, visible);
   const hasMore = visible < members.length;
+
+  const selectedMember = useMemo(
+    () => members.find((member) => member.id === selectedMemberId) ?? null,
+    [members, selectedMemberId],
+  );
 
   return (
     <div>
       <ul className="divide-y divide-zinc-100">
         {shown.map((member) => (
-          <li key={member.id} className="flex items-center justify-between gap-3 py-2">
-            <div className="flex min-w-0 items-center gap-2 py-0.5">
-              <span className="truncate text-sm font-medium text-zinc-900">{member.name}</span>
-              <span className="shrink-0 text-xs text-zinc-400">
-                {member.isPrimaryAdmin ? 'Admin principal' : member.isAdmin ? 'Admin' : 'Membro'}
-              </span>
-            </div>
+          <li key={member.id}>
             <button
               type="button"
-              onClick={() => setSelectedMember(member)}
-              className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-900"
+              onClick={() => setSelectedMemberId(member.id)}
+              className="flex w-full cursor-pointer items-center justify-between gap-3 py-2 text-left transition hover:bg-zinc-50"
               aria-label={`Ver detalhes de ${member.name}`}
             >
-              <MoreHorizontal className="h-4 w-4" />
+              <span className="flex min-w-0 items-center gap-2 py-0.5">
+                <span className="truncate text-sm font-medium text-zinc-900">{member.name}</span>
+                <span className="shrink-0 text-xs text-zinc-400">
+                  {member.isPrimaryAdmin ? 'Admin principal' : member.isAdmin ? 'Admin' : 'Membro'}
+                </span>
+              </span>
             </button>
           </li>
         ))}
@@ -69,9 +81,10 @@ export function ActiveMembersList({
       {selectedMember ? (
         <MemberDetailsDialog
           member={selectedMember}
+          availableRoles={availableRoles}
           canManageAdmins={canManageAdmins}
           canRemove={selectedMember.id !== sessionMembershipId}
-          onClose={() => setSelectedMember(null)}
+          onClose={() => setSelectedMemberId(null)}
         />
       ) : null}
     </div>
@@ -80,22 +93,39 @@ export function ActiveMembersList({
 
 function MemberDetailsDialog({
   member,
+  availableRoles,
   canManageAdmins,
   canRemove,
   onClose,
 }: {
   member: ActiveMember;
+  availableRoles: OrgRoleOption[];
   canManageAdmins: boolean;
   canRemove: boolean;
   onClose: () => void;
 }) {
-  const primaryRole = member.rolePreferences[0]?.name ?? null;
-  const preferences = member.rolePreferences.map((preference) => preference.name);
+  const [isPending, startTransition] = useTransition();
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') onClose();
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [onClose]);
+
+  function demote() {
+    startTransition(async () => {
+      await demoteAdminAction(member.id);
+      showSuccessToast();
+      onClose();
+    });
+  }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-      <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
-        <div className="flex items-start justify-between gap-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-6">
+      <div className="flex max-h-[min(90vh,40rem)] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-xl">
+        <div className="flex shrink-0 items-start justify-between gap-4 border-b border-zinc-100 px-6 py-5">
           <div>
             <h3 className="text-lg font-semibold text-zinc-900">{member.name}</h3>
             <p className="mt-0.5 text-xs text-zinc-500">
@@ -112,24 +142,38 @@ function MemberDetailsDialog({
           </button>
         </div>
 
-        <dl className="mt-5 space-y-3 text-sm">
-          <Detail label="Função" value={primaryRole ?? 'Sem função atribuída'} />
-          <Detail label="E-mail" value={member.email} />
-          <Detail
-            label="Preferências"
-            value={preferences.length > 0 ? preferences.join(', ') : 'Sem preferências'}
-          />
-          {member.groupName ? <Detail label="Grupo" value={member.groupName} /> : null}
-        </dl>
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+          <div className="space-y-5 text-sm">
+            <div>
+              <p className="font-medium text-zinc-700">Função</p>
+              <p className="mt-0.5 text-xs text-zinc-500">
+                Busque funções cadastradas e arraste para ordenar a preferência (1 = preferida).
+              </p>
+              <div className="mt-3">
+                <MemberRolePreferencesEditor
+                  membershipId={member.id}
+                  availableRoles={availableRoles}
+                  initialPreferences={member.rolePreferences}
+                />
+              </div>
+            </div>
+
+            <Detail label="E-mail" value={member.email} />
+            {member.groupName ? <Detail label="Grupo" value={member.groupName} /> : null}
+          </div>
+        </div>
 
         {canManageAdmins || canRemove ? (
-          <div className="mt-6 flex flex-wrap justify-end gap-2 border-t border-zinc-100 pt-4">
+          <div className="flex shrink-0 flex-wrap justify-end gap-2 border-t border-zinc-100 px-6 py-4">
             {canManageAdmins && member.isAdmin && !member.isPrimaryAdmin ? (
-              <form action={demoteAdminAction.bind(null, member.id)}>
-                <button type="submit" className="rounded-lg border px-3 py-1.5 text-sm">
-                  Remover admin
-                </button>
-              </form>
+              <button
+                type="button"
+                disabled={isPending}
+                onClick={demote}
+                className="rounded-lg border px-3 py-1.5 text-sm disabled:opacity-60"
+              >
+                Remover admin
+              </button>
             ) : null}
             {canRemove ? (
               <RemoveMemberButton membershipId={member.id} memberName={member.name} compact />
@@ -189,6 +233,7 @@ export function MembersCardMenu({
     if (!selected) return;
     startTransition(async () => {
       await promoteMemberAction(selected.id);
+      showSuccessToast();
       close();
     });
   }

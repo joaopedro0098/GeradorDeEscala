@@ -1,21 +1,19 @@
 import { redirect } from 'next/navigation';
-import {
-  approveMemberAction,
-  getMembersPageData,
-  rejectMemberAction,
-} from '@/modules/auth/actions';
+import { getMembersPageData } from '@/modules/auth/actions';
 import { canManageAdminRoles } from '@/modules/auth/permissions';
 import {
   ActiveMembersList,
   MembersCardMenu,
 } from '@/components/members/active-members-list';
+import { PendingMemberActions } from '@/components/members/pending-member-actions';
 
 export default async function AdminMembersPage() {
   const data = await getMembersPageData();
   if (!data) redirect('/login');
 
-  const { pending, active, session } = data;
+  const { pending, active, session, roles } = data;
   const canManageAdmins = canManageAdminRoles(session);
+  const availableRoles = roles.map((role) => ({ id: role.id, name: role.name }));
   const activeMembers = active.map((membership) => ({
     id: membership.id,
     name: membership.user.name,
@@ -47,24 +45,7 @@ export default async function AdminMembersPage() {
                   <p className="font-medium text-zinc-900">{membership.user.name}</p>
                   <p className="text-sm text-zinc-600">{membership.user.email}</p>
                 </div>
-                <div className="flex gap-2">
-                  <form action={approveMemberAction.bind(null, membership.id)}>
-                    <button
-                      type="submit"
-                      className="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm text-white"
-                    >
-                      Aceitar
-                    </button>
-                  </form>
-                  <form action={rejectMemberAction.bind(null, membership.id)}>
-                    <button
-                      type="submit"
-                      className="rounded-lg bg-red-600 px-3 py-1.5 text-sm text-white"
-                    >
-                      Recusar
-                    </button>
-                  </form>
-                </div>
+                <PendingMemberActions membershipId={membership.id} />
               </li>
             ))}
           </ul>
@@ -82,6 +63,7 @@ export default async function AdminMembersPage() {
         <div className="mt-4">
           <ActiveMembersList
             members={activeMembers}
+            availableRoles={availableRoles}
             canManageAdmins={canManageAdmins}
             sessionMembershipId={session.membershipId}
           />
@@ -90,4 +72,3 @@ export default async function AdminMembersPage() {
     </div>
   );
 }
-

@@ -1,7 +1,6 @@
 'use client';
 
 import {
-  useActionState,
   useEffect,
   useRef,
   useState,
@@ -14,6 +13,7 @@ import {
 } from '@/modules/auth/actions';
 import { Alert, PrimaryButton } from '@/components/auth/auth-ui';
 import { GlassCard } from '@/components/ui/glass-card';
+import { useToastActionState } from '@/components/ui/success-toast';
 
 const VIEWPORT = 168;
 const OUTPUT_SIZE = 400;
@@ -27,7 +27,7 @@ export function OrganizationProfileForm({
   organizationName,
   logoUrl,
 }: OrganizationProfileFormProps) {
-  const [state, formAction] = useActionState<ActionState, FormData>(
+  const [state, formAction] = useToastActionState<ActionState>(
     updateOrganizationProfileAction,
     {},
   );
@@ -150,7 +150,7 @@ export function OrganizationProfileForm({
       }
     }
 
-    return formAction(formData);
+    formAction(formData);
   }
 
   const size = getRenderedSize();
@@ -276,10 +276,9 @@ export function OrganizationProfileForm({
         </div>
 
         {state.error ? <Alert message={state.error} tone="error" /> : null}
-        {state.success ? <Alert message={state.success} tone="success" /> : null}
 
-        <div className="max-w-[12rem]">
-          <PrimaryButton label="Salvar" />
+        <div className="pt-1">
+          <PrimaryButton label="Salvar" fullWidth={false} />
         </div>
       </form>
     </GlassCard>

@@ -409,6 +409,65 @@ export async function removeMembership(membershipId: string, organizationId: str
   });
 }
 
+export async function listOrganizationRoles(organizationId: string) {
+  return prisma.role.findMany({
+    where: { organizationId },
+    orderBy: { name: 'asc' },
+    select: { id: true, name: true },
+  });
+}
+
+/**
+ * Replaces a member's instrument/voice preferences. `orderedRoleIds` is
+ * preference order (index 0 = most preferred). Empty clears all preferences.
+ */
+export async function setMembershipRolePreferences(input: {
+  organizationId: string;
+  membershipId: string;
+  orderedRoleIds: string[];
+}) {
+  const membership = await prisma.membership.findFirst({
+    where: {
+      id: input.membershipId,
+      organizationId: input.organizationId,
+      status: 'ACTIVE',
+    },
+    select: { id: true },
+  });
+
+  if (!membership) {
+    throw new AuthServiceError('FORBIDDEN', 'Membro não encontrado.');
+  }
+
+  const uniqueRoleIds = [...new Set(input.orderedRoleIds)];
+  if (uniqueRoleIds.length !== input.orderedRoleIds.length) {
+    throw new AuthServiceError('VALIDATION', 'Lista de funções inválida.');
+  }
+
+  if (uniqueRoleIds.length > 0) {
+    const roles = await prisma.role.findMany({
+      where: { organizationId: input.organizationId, id: { in: uniqueRoleIds } },
+      select: { id: true },
+    });
+    if (roles.length !== uniqueRoleIds.length) {
+      throw new AuthServiceError('VALIDATION', 'Uma ou mais funções não existem nesta organização.');
+    }
+  }
+
+  await prisma.$transaction([
+    prisma.membershipRolePreference.deleteMany({ where: { membershipId: membership.id } }),
+    ...input.orderedRoleIds.map((roleId, index) =>
+      prisma.membershipRolePreference.create({
+        data: {
+          membershipId: membership.id,
+          roleId,
+          sortOrder: index + 1,
+        },
+      }),
+    ),
+  ]);
+}
+
 export async function promoteMemberToAdmin(input: {
   organizationId: string;
   membershipId: string;

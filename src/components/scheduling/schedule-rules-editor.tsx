@@ -1,12 +1,12 @@
 'use client';
 
-import { useActionState } from 'react';
 import {
   saveGeneralIntervalRuleAction,
   saveParticipationMinimumAction,
 } from '@/modules/scheduling/actions';
 import { Alert, Field, PrimaryButton } from '@/components/auth/auth-ui';
 import { PriorityRolesList } from '@/components/scheduling/priority-roles-list';
+import { useToastActionState } from '@/components/ui/success-toast';
 import {
   INTERVAL_COUNT_MODE_LABELS,
   type IntervalRuleSummary,
@@ -22,8 +22,8 @@ export function ScheduleRulesEditor({
   priorityRoles: PriorityRoleSummary[];
   participationMinimumDays: number | null;
 }) {
-  const [generalState, generalAction] = useActionState(saveGeneralIntervalRuleAction, {});
-  const [participationState, participationAction] = useActionState(
+  const [generalState, generalAction] = useToastActionState(saveGeneralIntervalRuleAction, {});
+  const [participationState, participationAction] = useToastActionState(
     saveParticipationMinimumAction,
     {},
   );
@@ -32,41 +32,34 @@ export function ScheduleRulesEditor({
     <div className="space-y-6">
       <section className="rounded-2xl border border-zinc-200 bg-white p-6">
         <h2 className="text-lg font-semibold text-zinc-900">Regra de intervalo (geral)</h2>
-        <form action={generalAction} className="mt-4 grid gap-4 sm:grid-cols-3">
-          <Field
-            label="Intervalo"
-            name="intervalCount"
-            type="number"
-            defaultValue={String(generalIntervalRule?.intervalCount ?? 1)}
-          />
-          <label className="block text-sm font-medium text-zinc-800">
-            Contagem
-            <select
-              name="countMode"
-              defaultValue={generalIntervalRule?.countMode ?? 'BY_EVENT'}
-              className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
-            >
-              {Object.entries(INTERVAL_COUNT_MODE_LABELS).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <div className="self-end">
-            <PrimaryButton label="Salvar regra geral" />
+        <form action={generalAction} className="mt-4 space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field
+              label="Intervalo"
+              name="intervalCount"
+              type="number"
+              defaultValue={String(generalIntervalRule?.intervalCount ?? 1)}
+            />
+            <label className="block text-sm font-medium text-zinc-800">
+              Contagem
+              <select
+                name="countMode"
+                defaultValue={generalIntervalRule?.countMode ?? 'BY_EVENT'}
+                className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
+              >
+                {Object.entries(INTERVAL_COUNT_MODE_LABELS).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          {generalState.error ? <Alert message={generalState.error} tone="error" /> : null}
+          <div>
+            <PrimaryButton label="Salvar regra geral" fullWidth={false} />
           </div>
         </form>
-        {generalState.error ? (
-          <div className="mt-3">
-            <Alert message={generalState.error} tone="error" />
-          </div>
-        ) : null}
-        {generalState.success ? (
-          <div className="mt-3">
-            <Alert message={generalState.success} tone="success" />
-          </div>
-        ) : null}
       </section>
 
       <section className="rounded-2xl border border-zinc-200 bg-white p-6">
@@ -74,8 +67,8 @@ export function ScheduleRulesEditor({
         <p className="mt-1 text-sm text-zinc-600">
           Número mínimo de dias de disponibilidade que cada usuário deve marcar no período.
         </p>
-        <form action={participationAction} className="mt-4 flex flex-col gap-3 sm:flex-row">
-          <div className="sm:w-48">
+        <form action={participationAction} className="mt-4 space-y-4">
+          <div className="max-w-xs">
             <Field
               label="Mínimo de dias"
               name="minimumDays"
@@ -83,20 +76,13 @@ export function ScheduleRulesEditor({
               defaultValue={String(participationMinimumDays ?? 0)}
             />
           </div>
-          <div className="sm:self-end">
-            <PrimaryButton label="Salvar mínimo" />
+          {participationState.error ? (
+            <Alert message={participationState.error} tone="error" />
+          ) : null}
+          <div>
+            <PrimaryButton label="Salvar mínimo" fullWidth={false} />
           </div>
         </form>
-        {participationState.error ? (
-          <div className="mt-3">
-            <Alert message={participationState.error} tone="error" />
-          </div>
-        ) : null}
-        {participationState.success ? (
-          <div className="mt-3">
-            <Alert message={participationState.success} tone="success" />
-          </div>
-        ) : null}
       </section>
 
       <section className="rounded-2xl border border-zinc-200 bg-white p-6">

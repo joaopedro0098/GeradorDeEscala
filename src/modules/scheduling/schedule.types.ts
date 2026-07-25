@@ -44,6 +44,8 @@ export type ScheduleOverview = {
   hasPendingDraft: boolean;
   hasPreviousVersion: boolean;
   hasManualSlots: boolean;
+  /** When true, members cannot change availability for this month. */
+  availabilityLocked: boolean;
   memberVisiblePublishedAt: string | null;
   events: ScheduleEventView[];
   memberCounts: MemberAssignmentCount[];

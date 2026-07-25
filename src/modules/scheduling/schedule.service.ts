@@ -583,7 +583,10 @@ async function loadScheduleOverview(
     };
   });
 
-  const memberSource = options.requirePublished ? getMemberVisibleSlotSource(state) : 'working';
+  // When members may edit, they always see the live working copy so changes are visible.
+  const memberSource = options.requirePublished
+    ? getMemberVisibleSlotSource(state)
+    : 'working';
 
   let displayRows = adminWorkingRows;
 
@@ -640,6 +643,7 @@ async function loadScheduleOverview(
     hasPendingDraft: schedule.hasPendingDraft,
     hasPreviousVersion: Boolean(schedule.previousVersion),
     hasManualSlots: schedule.slots.some((slot) => slot.isManual),
+    availabilityLocked: schedule.availabilityLocked,
     memberVisiblePublishedAt,
     events,
     memberCounts: options.includeMemberCounts
@@ -885,4 +889,45 @@ export async function setScheduleSlotMinister(
         }),
       ),
   );
+}
+
+export async function setAvailabilityLocked(
+  organizationId: string,
+  year: number,
+  month: number,
+  availabilityLocked: boolean,
+): Promise<void> {
+  await prisma.schedule.upsert({
+    where: { organizationId_year_month: { organizationId, year, month } },
+    create: {
+      organizationId,
+      year,
+      month,
+      availabilityLocked,
+    },
+    update: { availabilityLocked },
+  });
+}
+
+export async function getAvailabilityLocked(
+  organizationId: string,
+  year: number,
+  month: number,
+): Promise<boolean> {
+  const schedule = await prisma.schedule.findUnique({
+    where: { organizationId_year_month: { organizationId, year, month } },
+    select: { availabilityLocked: true },
+  });
+  return schedule?.availabilityLocked ?? false;
+}
+
+export async function assertAvailabilityNotLocked(
+  organizationId: string,
+  year: number,
+  month: number,
+): Promise<void> {
+  const locked = await getAvailabilityLocked(organizationId, year, month);
+  if (locked) {
+    throw new ScheduleServiceError('O administrador bloqueou a função de alterar.');
+  }
 }

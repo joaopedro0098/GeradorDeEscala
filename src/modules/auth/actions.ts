@@ -13,11 +13,13 @@ import {
   joinOrganizationWithInviteCode,
   listActiveMembers,
   listMembershipsForUser,
+  listOrganizationRoles,
   listPendingMembers,
   promoteMemberToAdmin,
   registerUser,
   rejectMembership,
   removeMembership,
+  setMembershipRolePreferences,
   updateOrganizationProfile,
   updateUserEmail,
   updateUserPassword,
@@ -371,16 +373,40 @@ export async function getMembersPageData() {
     return null;
   }
 
-  const [pending, active] = await Promise.all([
+  const [pending, active, roles] = await Promise.all([
     listPendingMembers(session.organizationId),
     listActiveMembers(session.organizationId),
+    listOrganizationRoles(session.organizationId),
   ]);
 
   return {
     session,
     pending,
     active,
+    roles,
   };
+}
+
+export async function setMemberRolePreferencesAction(
+  membershipId: string,
+  orderedRoleIds: string[],
+): Promise<{ error?: string }> {
+  try {
+    const session = await getSessionFromCookies();
+    if (!session || !canManageMembers(session)) {
+      return { error: 'Sem permissão.' };
+    }
+
+    await setMembershipRolePreferences({
+      organizationId: session.organizationId,
+      membershipId,
+      orderedRoleIds,
+    });
+    revalidatePath('/admin/membros');
+    return {};
+  } catch (error) {
+    return handleActionError(error);
+  }
 }
 
 export async function getOrganizationsPageData() {

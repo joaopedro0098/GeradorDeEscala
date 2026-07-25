@@ -65,11 +65,20 @@ export function Alert({ message, tone }: { message: string; tone: 'error' | 'suc
   return <p className={`rounded-xl border px-3.5 py-2.5 text-sm ${styles}`}>{message}</p>;
 }
 
-export function PrimaryButton({ label }: { label: string }) {
+export function PrimaryButton({
+  label,
+  fullWidth = true,
+}: {
+  label: string;
+  /** When false, button sizes to its label (use for card save actions). */
+  fullWidth?: boolean;
+}) {
   return (
     <button
       type="submit"
-      className="w-full rounded-xl bg-[var(--btn-primary-bg)] px-4 py-3 text-sm font-semibold text-[var(--btn-primary-text)] shadow-md transition hover:bg-[var(--btn-primary-hover)]"
+      className={`${
+        fullWidth ? 'w-full' : 'inline-flex w-auto'
+      } rounded-xl bg-[var(--btn-primary-bg)] px-4 py-2.5 text-sm font-semibold text-[var(--btn-primary-text)] shadow-md transition hover:bg-[var(--btn-primary-hover)]`}
     >
       {label}
     </button>

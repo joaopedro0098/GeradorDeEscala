@@ -59,6 +59,8 @@ export function ConfigurationTabs({
           <RolesAndFormationEditor
             roles={configuration.roles}
             dayRequirements={configuration.dayRequirements}
+            eventDates={configuration.events.map((event) => event.date)}
+            workingMonth={workingMonth}
           />
         ) : null}
 

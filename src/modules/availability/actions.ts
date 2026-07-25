@@ -16,6 +16,7 @@ import {
   ensureWorkingMonth,
   getWorkingMonth,
 } from '@/modules/scheduling/working-month.service';
+import { assertAvailabilityNotLocked, getAvailabilityLocked } from '@/modules/scheduling/schedule.service';
 
 const MEMBER_PATH = '/membro/disponibilidade';
 const ADMIN_PATH = '/admin/disponibilidade';
@@ -30,13 +31,14 @@ function revalidateAvailability(year: number, month: number) {
 export async function getMemberAvailabilityPageData() {
   const session = await requireSession({ loginMode: 'user' });
   const workingMonth = await ensureWorkingMonth(session.organizationId);
-  const [events, minimumDays] = await Promise.all([
+  const [events, minimumDays, availabilityLocked] = await Promise.all([
     listOrganizationEventsForMonth(
       session.organizationId,
       workingMonth.year,
       workingMonth.month,
     ),
     getMinimumParticipationDays(session.organizationId),
+    getAvailabilityLocked(session.organizationId, workingMonth.year, workingMonth.month),
   ]);
 
   const markedEventIds = await listMemberAvailabilityEventIds(
@@ -51,23 +53,26 @@ export async function getMemberAvailabilityPageData() {
     minimumDays,
     selectedDays: markedEventIds.length,
     workingMonth,
+    availabilityLocked,
   };
 }
 
 export async function toggleAvailabilityAction(eventId: string) {
   const session = await requireSession({ loginMode: 'user' });
+  const { year, month } = await getWorkingMonth(session.organizationId);
+  await assertAvailabilityNotLocked(session.organizationId, year, month);
   await toggleMemberAvailability({
     membershipId: session.membershipId,
     organizationId: session.organizationId,
     eventId,
   });
-  const { year, month } = await getWorkingMonth(session.organizationId);
   revalidateAvailability(year, month);
 }
 
 export async function getSubmitAvailabilityPreviewAction() {
   const session = await requireSession({ loginMode: 'user' });
   const { year, month } = await getWorkingMonth(session.organizationId);
+  await assertAvailabilityNotLocked(session.organizationId, year, month);
   return getMemberAvailabilitySubmissionPreview({
     membershipId: session.membershipId,
     organizationId: session.organizationId,
@@ -79,6 +84,7 @@ export async function getSubmitAvailabilityPreviewAction() {
 export async function submitAvailabilityAction() {
   const session = await requireSession({ loginMode: 'user' });
   const { year, month } = await getWorkingMonth(session.organizationId);
+  await assertAvailabilityNotLocked(session.organizationId, year, month);
   const preview = await getMemberAvailabilitySubmissionPreview({
     membershipId: session.membershipId,
     organizationId: session.organizationId,

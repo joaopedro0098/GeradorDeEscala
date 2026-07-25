@@ -1,12 +1,12 @@
 'use client';
 
-import { useActionState } from 'react';
 import { createOrganizationAction, type ActionState } from '@/modules/auth/actions';
 import { Alert, Field } from '@/components/auth/auth-ui';
 import { GlassCard } from '@/components/ui/glass-card';
+import { useToastActionState } from '@/components/ui/success-toast';
 
 export function CreateOrganizationForm({ isFirstOrganization }: { isFirstOrganization: boolean }) {
-  const [state, formAction] = useActionState<ActionState, FormData>(createOrganizationAction, {});
+  const [state, formAction] = useToastActionState<ActionState>(createOrganizationAction, {});
 
   return (
     <GlassCard className="glass-card p-5">
@@ -19,13 +19,14 @@ export function CreateOrganizationForm({ isFirstOrganization }: { isFirstOrganiz
       <form action={formAction} className="mt-4 space-y-3">
         <Field label="Nome da organização" name="organizationName" />
         {state.error ? <Alert message={state.error} tone="error" /> : null}
-        {state.success ? <Alert message={state.success} tone="success" /> : null}
-        <button
-          type="submit"
-          className="btn-accent w-full rounded-xl px-4 py-3 text-sm font-semibold shadow-md transition"
-        >
-          Criar organização
-        </button>
+        <div>
+          <button
+            type="submit"
+            className="btn-accent inline-flex rounded-xl px-4 py-2.5 text-sm font-semibold shadow-md transition"
+          >
+            Criar organização
+          </button>
+        </div>
       </form>
     </GlassCard>
   );

@@ -23,6 +23,7 @@ export function ScheduleAdminPageClient({
   serverOverview,
   shortagePreview,
   assignmentCandidates,
+  availabilityLocked,
 }: {
   organizationId: string;
   workingMonth: YearMonth;
@@ -32,6 +33,7 @@ export function ScheduleAdminPageClient({
   serverOverview: ScheduleOverview | null;
   shortagePreview: ShortageEntryView[];
   assignmentCandidates: ScheduleAssignmentCandidate[];
+  availabilityLocked: boolean;
 }) {
   const [isOnline, setIsOnline] = useState(true);
   const [resolved, setResolved] = useState(() =>
@@ -103,6 +105,9 @@ export function ScheduleAdminPageClient({
         overview={resolved.overview}
         shortagePreview={isCached ? [] : shortagePreview}
         assignmentCandidates={isCached ? [] : assignmentCandidates}
+        availabilityLocked={
+          isCached ? Boolean(resolved.overview?.availabilityLocked) : availabilityLocked
+        }
         readOnly={isCached || isHistory}
         isOffline={isCached}
       />

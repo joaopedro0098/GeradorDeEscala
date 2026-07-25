@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import { ServiceWorkerRegister } from '@/components/pwa/service-worker-register';
+import { SuccessToastHost } from '@/components/ui/success-toast';
 import './globals.css';
 
 const geistSans = Geist({
@@ -49,6 +50,7 @@ export default function RootLayout({
     <html lang="pt-BR" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col">
         {children}
+        <SuccessToastHost />
         <ServiceWorkerRegister />
       </body>
     </html>

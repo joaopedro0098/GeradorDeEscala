@@ -1,11 +1,13 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { MonthHistorySelect } from '@/components/scheduling/month-history-select';
+import { showSuccessToast } from '@/components/ui/success-toast';
 import {
   generateScheduleAction,
   publishScheduleAction,
+  setAvailabilityLockedAction,
   setScheduleSlotAssignmentAction,
   setScheduleSlotMinisterAction,
   undoLastGenerationAction,
@@ -38,6 +40,7 @@ export function ScheduleAdminView({
   overview,
   shortagePreview,
   assignmentCandidates,
+  availabilityLocked = false,
   readOnly = false,
   isOffline = false,
 }: {
@@ -48,14 +51,20 @@ export function ScheduleAdminView({
   overview: ScheduleOverview | null;
   shortagePreview: ShortageEntryView[];
   assignmentCandidates: ScheduleAssignmentCandidate[];
+  /** When true, availability table is locked for members. */
+  availabilityLocked?: boolean;
   readOnly?: boolean;
   isOffline?: boolean;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [dialog, setDialog] = useState<DialogKind>(null);
-  const [feedback, setFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [tableLocked, setTableLocked] = useState(availabilityLocked);
+
+  useEffect(() => {
+    setTableLocked(availabilityLocked);
+  }, [availabilityLocked]);
 
   function eligibleForSlot(eventId: string, roleId: string): ScheduleAssignmentCandidate[] {
     return assignmentCandidates.filter(
@@ -67,14 +76,13 @@ export function ScheduleAdminView({
   function runGenerate(keepManual: boolean) {
     setDialog(null);
     setError(null);
-    setFeedback(null);
     startTransition(async () => {
       const result = await generateScheduleAction(keepManual);
       if (result.error) {
         setError(result.error);
         return;
       }
-      setFeedback(result.status ? GENERATION_STATUS_LABELS[result.status] : 'Escala gerada.');
+      showSuccessToast();
       router.refresh();
     });
   }
@@ -90,7 +98,6 @@ export function ScheduleAdminView({
   function handleGenerateClick() {
     if (readOnly) return;
     setError(null);
-    setFeedback(null);
     if (shortagePreview.length > 0) {
       setDialog('shortage');
       return;
@@ -104,14 +111,13 @@ export function ScheduleAdminView({
 
   function handlePublish() {
     setError(null);
-    setFeedback(null);
     startTransition(async () => {
       const result = await publishScheduleAction();
       if (result.error) {
         setError(result.error);
         return;
       }
-      setFeedback(result.success ?? 'Escala publicada.');
+      showSuccessToast();
       router.refresh();
     });
   }
@@ -124,6 +130,7 @@ export function ScheduleAdminView({
         setError(result.error);
         return;
       }
+      showSuccessToast();
       router.refresh();
     });
   }
@@ -136,20 +143,36 @@ export function ScheduleAdminView({
         setError(result.error);
         return;
       }
+      showSuccessToast();
       router.refresh();
     });
   }
 
   function handleUndo() {
     setError(null);
-    setFeedback(null);
     startTransition(async () => {
       const result = await undoLastGenerationAction();
       if (result.error) {
         setError(result.error);
         return;
       }
-      setFeedback(result.success ?? 'Última geração desfeita.');
+      showSuccessToast();
+      router.refresh();
+    });
+  }
+
+  function handleToggleTableLock(nextLocked: boolean) {
+    if (readOnly || isHistory) return;
+    setError(null);
+    setTableLocked(nextLocked);
+    startTransition(async () => {
+      const result = await setAvailabilityLockedAction(nextLocked);
+      if (result.error) {
+        setTableLocked(!nextLocked);
+        setError(result.error);
+        return;
+      }
+      showSuccessToast();
       router.refresh();
     });
   }
@@ -166,6 +189,37 @@ export function ScheduleAdminView({
 
   return (
     <div className="space-y-4">
+      {!isHistory ? (
+        <section className="rounded-2xl border border-zinc-200 bg-white p-6">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="min-w-0 flex-1">
+              <h2 className="text-lg font-semibold text-zinc-900">Trancar tabela</h2>
+              <p className="mt-1 text-sm text-zinc-600">
+                Ao trancar, você fecha o prazo de inserção de informações na tabela e os membros só
+                poderam visualizar
+              </p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={tableLocked}
+              disabled={isPending || readOnly}
+              onClick={() => handleToggleTableLock(!tableLocked)}
+              className={`relative h-7 w-12 shrink-0 rounded-full transition-colors disabled:opacity-60 ${
+                tableLocked ? 'bg-zinc-900' : 'bg-zinc-300'
+              }`}
+            >
+              <span
+                className={`absolute top-0.5 left-0.5 h-6 w-6 rounded-full bg-white shadow transition-transform ${
+                  tableLocked ? 'translate-x-5' : 'translate-x-0'
+                }`}
+              />
+              <span className="sr-only">{tableLocked ? 'Tabela trancada' : 'Tabela destrancada'}</span>
+            </button>
+          </div>
+        </section>
+      ) : null}
+
       <section className="rounded-2xl border border-zinc-200 bg-white p-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
@@ -225,7 +279,6 @@ export function ScheduleAdminView({
         ) : null}
 
         {error ? <p className="mt-4 text-sm text-red-700">{error}</p> : null}
-        {feedback ? <p className="mt-4 text-sm text-emerald-700">{feedback}</p> : null}
 
         {shortagePreview.length > 0 ? (
           <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
@@ -241,7 +294,7 @@ export function ScheduleAdminView({
           </div>
         ) : null}
 
-        <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+        <div className="mt-5 flex flex-col items-start gap-2 sm:flex-row sm:flex-wrap">
           <button
             type="button"
             disabled={isPending || readOnly}

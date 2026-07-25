@@ -10,6 +10,7 @@ export default async function MemberAvailabilityPage() {
       events={data.events}
       initialMarkedEventIds={data.markedEventIds}
       minimumDays={data.minimumDays}
+      locked={data.availabilityLocked}
     />
   );
 }

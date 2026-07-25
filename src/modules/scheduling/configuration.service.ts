@@ -220,6 +220,21 @@ export async function upsertDayRequirement(input: {
   });
 }
 
+export async function upsertDayRequirementsForDay(input: {
+  organizationId: string;
+  dayOfWeek: DayOfWeek;
+  requirements: Array<{ roleId: string; quantity: number }>;
+}): Promise<void> {
+  for (const requirement of input.requirements) {
+    await upsertDayRequirement({
+      organizationId: input.organizationId,
+      dayOfWeek: input.dayOfWeek,
+      roleId: requirement.roleId,
+      quantity: requirement.quantity,
+    });
+  }
+}
+
 export async function upsertIntervalRule(input: {
   organizationId: string;
   intervalCount: number;

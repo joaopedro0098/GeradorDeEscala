@@ -1,13 +1,14 @@
 'use client';
 
-import { useActionState, useState } from 'react';
+import { useState } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
 import { createTestMemberAction, type ActionState } from '@/modules/auth/actions';
 import { Alert, Field, PrimaryButton } from '@/components/auth/auth-ui';
 import { GlassCard } from '@/components/ui/glass-card';
+import { useToastActionState } from '@/components/ui/success-toast';
 
 export function CreateTestMemberForm({ organizationName }: { organizationName: string }) {
-  const [state, action] = useActionState<ActionState, FormData>(createTestMemberAction, {});
+  const [state, action] = useToastActionState<ActionState>(createTestMemberAction, {});
   const [showPassword, setShowPassword] = useState(false);
 
   return (
@@ -45,9 +46,8 @@ export function CreateTestMemberForm({ organizationName }: { organizationName: s
         </label>
 
         {state.error ? <Alert message={state.error} tone="error" /> : null}
-        {state.success ? <Alert message={state.success} tone="success" /> : null}
-        <div className="max-w-[14rem]">
-          <PrimaryButton label="Criar membro" />
+        <div>
+          <PrimaryButton label="Criar membro" fullWidth={false} />
         </div>
       </form>
     </GlassCard>

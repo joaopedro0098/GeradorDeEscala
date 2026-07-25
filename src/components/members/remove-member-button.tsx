@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { removeMemberAction } from '@/modules/auth/actions';
+import { showSuccessToast } from '@/components/ui/success-toast';
 
 export function RemoveMemberButton({
   membershipId,
@@ -18,6 +19,7 @@ export function RemoveMemberButton({
   function confirmRemove() {
     startTransition(async () => {
       await removeMemberAction(membershipId);
+      showSuccessToast();
       setOpen(false);
     });
   }

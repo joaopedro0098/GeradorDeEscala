@@ -352,6 +352,7 @@ describe('Fase 10 — smoke test do caminho crítico (cadastro → ... → offli
       hasPendingDraft: false,
       hasPreviousVersion: true,
       hasManualSlots: true,
+      availabilityLocked: false,
       memberVisiblePublishedAt: new Date().toISOString(),
       events: [],
       memberCounts: [],

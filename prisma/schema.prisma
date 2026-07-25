@@ -290,6 +290,8 @@ model Schedule {
   generationStatus    ScheduleGenerationStatus?
   hasPublishedGaps    Boolean                    @default(false)
   publishedAt         DateTime?
+  /// When true, members may only view availability for this month (no edits).
+  availabilityLocked  Boolean                    @default(false)
   /// True after regenerating a published schedule (or after undo while members
   /// still see a frozen snapshot). Working copy is a draft until Publish.
   hasPendingDraft     Boolean                    @default(false)

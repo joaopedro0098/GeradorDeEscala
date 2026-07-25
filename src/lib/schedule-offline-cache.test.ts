@@ -17,6 +17,7 @@ const overview: ScheduleOverview = {
   hasPendingDraft: false,
   hasPreviousVersion: false,
   hasManualSlots: false,
+  availabilityLocked: false,
   memberVisiblePublishedAt: '2026-08-01T00:00:00.000Z',
   events: [],
   memberCounts: [],

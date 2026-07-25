@@ -1,10 +1,10 @@
 'use client';
 
-import { useActionState } from 'react';
 import { CreateOrganizationForm } from '@/components/account/create-organization-form';
 import { joinOrganizationAction, switchContextAction, type ActionState } from '@/modules/auth/actions';
 import { Alert, Field, PrimaryButton } from '@/components/auth/auth-ui';
 import { GlassCard } from '@/components/ui/glass-card';
+import { useToastActionState } from '@/components/ui/success-toast';
 import type { MembershipSummary, SessionPayload } from '@/modules/auth/types';
 
 function roleLabel(membership: MembershipSummary): string {
@@ -92,7 +92,7 @@ function OrganizationList({
 }
 
 function JoinOrganizationPanel() {
-  const [state, formAction] = useActionState<ActionState, FormData>(joinOrganizationAction, {});
+  const [state, formAction] = useToastActionState<ActionState>(joinOrganizationAction, {});
 
   return (
     <GlassCard className="glass-card p-5">
@@ -102,16 +102,13 @@ function JoinOrganizationPanel() {
       </p>
       <form action={formAction} className="mt-4 space-y-3">
         <Field label="Código da organização" name="inviteCode" />
-        <PrimaryButton label="Solicitar entrada" />
+        <div>
+          <PrimaryButton label="Solicitar entrada" fullWidth={false} />
+        </div>
       </form>
       {state.error ? (
         <div className="mt-3">
           <Alert message={state.error} tone="error" />
-        </div>
-      ) : null}
-      {state.success ? (
-        <div className="mt-3">
-          <Alert message={state.success} tone="success" />
         </div>
       ) : null}
     </GlassCard>

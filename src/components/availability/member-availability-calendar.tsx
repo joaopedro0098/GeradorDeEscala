@@ -6,6 +6,7 @@ import {
   submitAvailabilityAction,
   toggleAvailabilityAction,
 } from '@/modules/availability/actions';
+import { showSuccessToast } from '@/components/ui/success-toast';
 import { buildMonthGrid } from '@/modules/scheduling/configuration.logic';
 import type { SubmitConfirmation } from '@/modules/availability/availability.logic';
 import { formatYearMonth, type YearMonth } from '@/modules/scheduling/working-month.logic';
@@ -19,17 +20,18 @@ export function MemberAvailabilityCalendar({
   events,
   initialMarkedEventIds,
   minimumDays,
+  locked = false,
 }: {
   workingMonth: YearMonth;
   events: EventItem[];
   initialMarkedEventIds: string[];
   minimumDays: number;
+  locked?: boolean;
 }) {
   const [markedEventIds, setMarkedEventIds] = useState(new Set(initialMarkedEventIds));
   const [isPending, startTransition] = useTransition();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [preview, setPreview] = useState<SubmitConfirmation | null>(null);
-  const [feedback, setFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const eventsByDate = useMemo(
@@ -43,6 +45,7 @@ export function MemberAvailabilityCalendar({
   const selectedDays = markedEventIds.size;
 
   function toggleDay(dateKey: string) {
+    if (locked) return;
     const event = eventsByDate.get(dateKey);
     if (!event) return;
 
@@ -60,24 +63,33 @@ export function MemberAvailabilityCalendar({
           return next;
         });
       } catch {
-        setError('Não foi possível atualizar a disponibilidade.');
+        setError('O administrador bloqueou a função de alterar.');
       }
     });
   }
 
   async function openSubmitDialog() {
+    if (locked) return;
     setError(null);
-    setFeedback(null);
-    const nextPreview = await getSubmitAvailabilityPreviewAction();
-    setPreview(nextPreview);
-    setDialogOpen(true);
+    try {
+      const nextPreview = await getSubmitAvailabilityPreviewAction();
+      setPreview(nextPreview);
+      setDialogOpen(true);
+    } catch {
+      setError('O administrador bloqueou a função de alterar.');
+    }
   }
 
   async function confirmSubmit() {
     startTransition(async () => {
-      const result = await submitAvailabilityAction();
-      setDialogOpen(false);
-      setFeedback(result.message);
+      try {
+        await submitAvailabilityAction();
+        setDialogOpen(false);
+        showSuccessToast();
+      } catch {
+        setError('O administrador bloqueou a função de alterar.');
+        setDialogOpen(false);
+      }
     });
   }
 
@@ -90,18 +102,24 @@ export function MemberAvailabilityCalendar({
               Disponibilidade de <span className="capitalize">{formatYearMonth(workingMonth)}</span>
             </h2>
             <p className="mt-1 text-sm text-zinc-600">
-              Selecione os dias em que você pode participar. Mínimo configurado: {minimumDays}{' '}
-              dia(s).
+              {locked
+                ? 'A tabela está trancada. Você pode consultar o que já foi marcado, mas não alterar.'
+                : `Selecione os dias em que você pode participar. Mínimo configurado: ${minimumDays} dia(s).`}
             </p>
           </div>
         </div>
+
+        {locked ? (
+          <p className="mt-4 rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-700">
+            O administrador bloqueou a função de alterar.
+          </p>
+        ) : null}
 
         <p className="mt-4 text-sm text-zinc-700">
           Dias selecionados: <strong>{selectedDays}</strong>
         </p>
 
         {error ? <p className="mt-2 text-sm text-red-700">{error}</p> : null}
-        {feedback ? <p className="mt-2 text-sm text-emerald-700">{feedback}</p> : null}
 
         <div className="mt-5 grid grid-cols-7 gap-2 text-center text-xs font-medium text-zinc-500">
           {WEEKDAY_LABELS.map((label) => (
@@ -115,7 +133,7 @@ export function MemberAvailabilityCalendar({
 
             const event = eventsByDate.get(dateKey);
             const isMarked = event ? markedEventIds.has(event.id) : false;
-            const isSelectable = Boolean(event);
+            const isSelectable = Boolean(event) && !locked;
 
             return (
               <button
@@ -124,10 +142,12 @@ export function MemberAvailabilityCalendar({
                 disabled={!isSelectable || isPending}
                 onClick={() => toggleDay(dateKey)}
                 className={`min-h-11 rounded-lg border px-1 py-2 text-sm sm:px-2 sm:py-3 ${
-                  isSelectable
+                  event
                     ? isMarked
                       ? 'border-zinc-900 bg-zinc-900 text-white'
-                      : 'border-zinc-300 bg-white text-zinc-800'
+                      : locked
+                        ? 'cursor-default border-zinc-200 bg-zinc-50 text-zinc-700'
+                        : 'border-zinc-300 bg-white text-zinc-800'
                     : 'border-zinc-100 bg-zinc-50 text-zinc-300'
                 }`}
               >
@@ -136,16 +156,20 @@ export function MemberAvailabilityCalendar({
             );
           })}
         </div>
-      </section>
 
-      <button
-        type="button"
-        disabled={isPending}
-        onClick={openSubmitDialog}
-        className="w-full rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-60"
-      >
-        Enviar disponibilidade
-      </button>
+        {!locked ? (
+          <div className="mt-5">
+            <button
+              type="button"
+              disabled={isPending}
+              onClick={openSubmitDialog}
+              className="inline-flex rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-60"
+            >
+              Enviar disponibilidade
+            </button>
+          </div>
+        ) : null}
+      </section>
 
       {dialogOpen && preview ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
@@ -174,3 +198,4 @@ export function MemberAvailabilityCalendar({
     </div>
   );
 }
+
