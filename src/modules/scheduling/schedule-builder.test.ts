@@ -103,7 +103,7 @@ describe('buildSolverInput', () => {
           compatibleRolePairs: [],
         },
       ],
-      intervalRules: [],
+      intervalRule: null,
       priorityRoles: [],
       priorMonthSlots: [{ membershipId: 'mem-1', roleId: 'role-guitar' }],
       groups: [],

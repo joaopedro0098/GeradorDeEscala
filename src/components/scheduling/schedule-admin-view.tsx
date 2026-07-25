@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import { MonthHistorySelect } from '@/components/scheduling/month-history-select';
 import {
   generateScheduleAction,
   publishScheduleAction,
@@ -16,6 +17,7 @@ import {
   type ShortageEntryView,
 } from '@/modules/scheduling/schedule.types';
 import { DAY_OF_WEEK_LABELS } from '@/modules/scheduling/types';
+import { formatYearMonth, type YearMonth } from '@/modules/scheduling/working-month.logic';
 
 function formatDate(dateKey: string): string {
   const [year, month, day] = dateKey.split('-').map(Number);
@@ -29,31 +31,31 @@ function formatDate(dateKey: string): string {
 type DialogKind = 'shortage' | 'manual' | null;
 
 export function ScheduleAdminView({
-  initialYear,
-  initialMonth,
+  workingMonth,
+  viewedMonth,
+  isHistory,
+  historyMonths,
   overview,
   shortagePreview,
   assignmentCandidates,
   readOnly = false,
+  isOffline = false,
 }: {
-  initialYear: number;
-  initialMonth: number;
+  workingMonth: YearMonth;
+  viewedMonth: YearMonth;
+  isHistory: boolean;
+  historyMonths: YearMonth[];
   overview: ScheduleOverview | null;
   shortagePreview: ShortageEntryView[];
   assignmentCandidates: ScheduleAssignmentCandidate[];
   readOnly?: boolean;
+  isOffline?: boolean;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [dialog, setDialog] = useState<DialogKind>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-
-  function shiftMonth(delta: number) {
-    if (readOnly) return;
-    const next = new Date(Date.UTC(initialYear, initialMonth - 1 + delta, 1));
-    router.push(`/admin/escala?year=${next.getUTCFullYear()}&month=${next.getUTCMonth() + 1}`);
-  }
 
   function eligibleForSlot(eventId: string, roleId: string): ScheduleAssignmentCandidate[] {
     return assignmentCandidates.filter(
@@ -67,7 +69,7 @@ export function ScheduleAdminView({
     setError(null);
     setFeedback(null);
     startTransition(async () => {
-      const result = await generateScheduleAction(initialYear, initialMonth, keepManual);
+      const result = await generateScheduleAction(keepManual);
       if (result.error) {
         setError(result.error);
         return;
@@ -104,7 +106,7 @@ export function ScheduleAdminView({
     setError(null);
     setFeedback(null);
     startTransition(async () => {
-      const result = await publishScheduleAction(initialYear, initialMonth);
+      const result = await publishScheduleAction();
       if (result.error) {
         setError(result.error);
         return;
@@ -117,12 +119,7 @@ export function ScheduleAdminView({
   function handleAssignmentChange(slotId: string, membershipId: string | null) {
     setError(null);
     startTransition(async () => {
-      const result = await setScheduleSlotAssignmentAction(
-        slotId,
-        membershipId,
-        initialYear,
-        initialMonth,
-      );
+      const result = await setScheduleSlotAssignmentAction(slotId, membershipId);
       if (result.error) {
         setError(result.error);
         return;
@@ -134,7 +131,7 @@ export function ScheduleAdminView({
   function handleToggleMinister(slotId: string) {
     setError(null);
     startTransition(async () => {
-      const result = await setScheduleSlotMinisterAction(slotId, initialYear, initialMonth);
+      const result = await setScheduleSlotMinisterAction(slotId);
       if (result.error) {
         setError(result.error);
         return;
@@ -147,7 +144,7 @@ export function ScheduleAdminView({
     setError(null);
     setFeedback(null);
     startTransition(async () => {
-      const result = await undoLastGenerationAction(initialYear, initialMonth);
+      const result = await undoLastGenerationAction();
       if (result.error) {
         setError(result.error);
         return;
@@ -167,43 +164,36 @@ export function ScheduleAdminView({
     }).format(new Date(iso));
   }
 
-  const monthLabel = new Intl.DateTimeFormat('pt-BR', {
-    month: 'long',
-    year: 'numeric',
-    timeZone: 'UTC',
-  }).format(new Date(Date.UTC(initialYear, initialMonth - 1, 1)));
-
   return (
     <div className="space-y-4">
       <section className="rounded-2xl border border-zinc-200 bg-white p-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h2 className="text-lg font-semibold text-zinc-900">Escala do período</h2>
+            <h2 className="text-lg font-semibold text-zinc-900">
+              Escala de <span className="capitalize">{formatYearMonth(viewedMonth)}</span>
+            </h2>
             <p className="mt-1 text-sm text-zinc-600">
-              Gerar cria ou sobrescreve um rascunho; publique quando estiver pronto para os membros
-              verem.
+              {isHistory
+                ? 'Mês encerrado, aberto apenas para consulta.'
+                : 'O mês vem de Configurações › Calendário. Gerar cria ou sobrescreve um rascunho; publique quando estiver pronto para os membros verem.'}
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              disabled={readOnly}
-              className="rounded-lg border px-3 py-1.5 text-sm disabled:opacity-40"
-              onClick={() => shiftMonth(-1)}
-            >
-              ‹
-            </button>
-            <span className="min-w-36 text-center text-sm font-medium capitalize">{monthLabel}</span>
-            <button
-              type="button"
-              disabled={readOnly}
-              className="rounded-lg border px-3 py-1.5 text-sm disabled:opacity-40"
-              onClick={() => shiftMonth(1)}
-            >
-              ›
-            </button>
-          </div>
+          <MonthHistorySelect
+            basePath="/admin/escala"
+            workingMonth={workingMonth}
+            viewedMonth={viewedMonth}
+            isHistory={isHistory}
+            historyMonths={historyMonths}
+            disabled={isOffline}
+          />
         </div>
+
+        {isHistory ? (
+          <p className="mt-4 rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-700">
+            Somente leitura. Para editar, volte ao mês de trabalho (
+            <span className="capitalize">{formatYearMonth(workingMonth)}</span>).
+          </p>
+        ) : null}
 
         {overview ? (
           <div className="mt-4 flex flex-wrap items-center gap-2 text-sm">

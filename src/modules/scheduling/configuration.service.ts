@@ -1,7 +1,6 @@
 import type { DayOfWeek, IntervalCountMode } from '@/generated/prisma/client';
 import { prisma } from '@/lib/prisma';
 import {
-  buildIntervalScopeKey,
   normalizeRoleName,
   parseDateKey,
   reorderPriorityRoleIds,
@@ -20,7 +19,9 @@ export class ConfigurationServiceError extends Error {
 export async function getScheduleConfiguration(
   organizationId: string,
 ): Promise<ScheduleConfigurationSnapshot> {
-  const [roles, events, dayRequirements, intervalRules, priorityRoles, participationConfig] =
+  await ensureAllRolesInPriority(organizationId);
+
+  const [roles, events, dayRequirements, intervalRule, priorityRoles, participationConfig] =
     await Promise.all([
       prisma.role.findMany({
         where: { organizationId },
@@ -37,10 +38,8 @@ export async function getScheduleConfiguration(
         include: { role: { select: { name: true } } },
         orderBy: [{ dayOfWeek: 'asc' }, { role: { name: 'asc' } }],
       }),
-      prisma.intervalRule.findMany({
+      prisma.intervalRule.findUnique({
         where: { organizationId },
-        include: { role: { select: { name: true } } },
-        orderBy: { createdAt: 'asc' },
       }),
       prisma.priorityRole.findMany({
         where: { organizationId },
@@ -51,9 +50,6 @@ export async function getScheduleConfiguration(
         where: { organizationId },
       }),
     ]);
-
-  const generalIntervalRule = intervalRules.find((rule) => rule.scopeKey === 'GENERAL') ?? null;
-  const roleIntervalRules = intervalRules.filter((rule) => rule.scopeKey !== 'GENERAL');
 
   return {
     roles,
@@ -67,22 +63,12 @@ export async function getScheduleConfiguration(
       roleName: requirement.role.name,
       quantity: requirement.quantity,
     })),
-    generalIntervalRule: generalIntervalRule
+    generalIntervalRule: intervalRule
       ? {
-          scopeKey: generalIntervalRule.scopeKey,
-          roleId: generalIntervalRule.roleId,
-          roleName: generalIntervalRule.role?.name ?? null,
-          intervalCount: generalIntervalRule.intervalCount,
-          countMode: generalIntervalRule.countMode,
+          intervalCount: intervalRule.intervalCount,
+          countMode: intervalRule.countMode,
         }
       : null,
-    roleIntervalRules: roleIntervalRules.map((rule) => ({
-      scopeKey: rule.scopeKey,
-      roleId: rule.roleId,
-      roleName: rule.role?.name ?? null,
-      intervalCount: rule.intervalCount,
-      countMode: rule.countMode,
-    })),
     priorityRoles: priorityRoles.map((priorityRole) => ({
       roleId: priorityRole.roleId,
       roleName: priorityRole.role.name,
@@ -90,6 +76,35 @@ export async function getScheduleConfiguration(
     })),
     participationMinimumDays: participationConfig?.minimumDays ?? null,
   };
+}
+
+/** Every role belongs in the priority ranking; missing ones are appended at the end. */
+async function ensureAllRolesInPriority(organizationId: string): Promise<void> {
+  const [roles, priorities] = await Promise.all([
+    prisma.role.findMany({
+      where: { organizationId },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true },
+    }),
+    prisma.priorityRole.findMany({
+      where: { organizationId },
+      orderBy: { sortOrder: 'asc' },
+      select: { roleId: true, sortOrder: true },
+    }),
+  ]);
+
+  const ranked = new Set(priorities.map((item) => item.roleId));
+  const missing = roles.filter((role) => !ranked.has(role.id));
+  if (missing.length === 0) return;
+
+  let nextOrder = (priorities[priorities.length - 1]?.sortOrder ?? 0) + 1;
+  await prisma.priorityRole.createMany({
+    data: missing.map((role) => {
+      const sortOrder = nextOrder;
+      nextOrder += 1;
+      return { organizationId, roleId: role.id, sortOrder };
+    }),
+  });
 }
 
 export async function toggleEventDate(organizationId: string, dateKey: string): Promise<void> {
@@ -135,12 +150,15 @@ export async function createRole(organizationId: string, name: string) {
     throw new ConfigurationServiceError('Esta função já existe.');
   }
 
-  return prisma.role.create({
+  const role = await prisma.role.create({
     data: {
       organizationId,
       name: normalizedName,
     },
   });
+
+  await addPriorityRole(organizationId, role.id);
+  return role;
 }
 
 export async function deleteRole(organizationId: string, roleId: string): Promise<void> {
@@ -204,7 +222,6 @@ export async function upsertDayRequirement(input: {
 
 export async function upsertIntervalRule(input: {
   organizationId: string;
-  roleId?: string | null;
   intervalCount: number;
   countMode: IntervalCountMode;
 }): Promise<void> {
@@ -212,48 +229,16 @@ export async function upsertIntervalRule(input: {
     throw new ConfigurationServiceError('Intervalo inválido.');
   }
 
-  const scopeKey = buildIntervalScopeKey(input.roleId);
-
-  if (scopeKey !== 'GENERAL') {
-    const role = await prisma.role.findFirst({
-      where: { id: input.roleId!, organizationId: input.organizationId },
-    });
-    if (!role) {
-      throw new ConfigurationServiceError('Função não encontrada.');
-    }
-  }
-
   await prisma.intervalRule.upsert({
-    where: {
-      organizationId_scopeKey: {
-        organizationId: input.organizationId,
-        scopeKey,
-      },
-    },
+    where: { organizationId: input.organizationId },
     update: {
       intervalCount: input.intervalCount,
       countMode: input.countMode,
-      roleId: input.roleId ?? null,
     },
     create: {
       organizationId: input.organizationId,
-      scopeKey,
-      roleId: input.roleId ?? null,
       intervalCount: input.intervalCount,
       countMode: input.countMode,
-    },
-  });
-}
-
-export async function removeIntervalRule(input: {
-  organizationId: string;
-  roleId?: string | null;
-}): Promise<void> {
-  const scopeKey = buildIntervalScopeKey(input.roleId);
-  await prisma.intervalRule.deleteMany({
-    where: {
-      organizationId: input.organizationId,
-      scopeKey,
     },
   });
 }

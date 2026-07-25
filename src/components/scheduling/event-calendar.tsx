@@ -1,32 +1,57 @@
 'use client';
 
 import { useMemo, useState, useTransition } from 'react';
-import { toggleEventDateAction } from '@/modules/scheduling/actions';
+import { useRouter } from 'next/navigation';
+import { setWorkingMonthAction, toggleEventDateAction } from '@/modules/scheduling/actions';
 import { buildMonthGrid } from '@/modules/scheduling/configuration.logic';
+import {
+  compareYearMonth,
+  formatYearMonth,
+  shiftYearMonth,
+  type YearMonth,
+} from '@/modules/scheduling/working-month.logic';
 
 const WEEKDAY_LABELS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
 export function EventCalendar({
-  initialYear,
-  initialMonth,
+  workingMonth,
+  earliestMonth,
   eventDates,
 }: {
-  initialYear: number;
-  initialMonth: number;
+  workingMonth: YearMonth;
+  /** Oldest month the organization may work on — the current month. */
+  earliestMonth: YearMonth;
   eventDates: string[];
 }) {
-  const [year, setYear] = useState(initialYear);
-  const [month, setMonth] = useState(initialMonth);
+  const router = useRouter();
   const [selectedDates, setSelectedDates] = useState(new Set(eventDates));
+  const [pendingMonth, setPendingMonth] = useState<YearMonth | null>(null);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
-  const monthCells = useMemo(() => buildMonthGrid(year, month), [year, month]);
+  const monthCells = useMemo(
+    () => buildMonthGrid(workingMonth.year, workingMonth.month),
+    [workingMonth],
+  );
+  const canGoBack = compareYearMonth(shiftYearMonth(workingMonth, -1), earliestMonth) >= 0;
 
-  function shiftMonth(delta: number) {
-    const next = new Date(Date.UTC(year, month - 1 + delta, 1));
-    setYear(next.getUTCFullYear());
-    setMonth(next.getUTCMonth() + 1);
+  function requestMonthChange(delta: number) {
+    setError(null);
+    setPendingMonth(shiftYearMonth(workingMonth, delta));
+  }
+
+  function confirmMonthChange() {
+    const target = pendingMonth;
+    if (!target) return;
+    setPendingMonth(null);
+    startTransition(async () => {
+      const result = await setWorkingMonthAction(target.year, target.month);
+      if (result.error) {
+        setError(result.error);
+        return;
+      }
+      router.refresh();
+    });
   }
 
   function toggleDate(dateKey: string) {
@@ -45,34 +70,34 @@ export function EventCalendar({
     });
   }
 
-  const monthLabel = new Intl.DateTimeFormat('pt-BR', {
-    month: 'long',
-    year: 'numeric',
-    timeZone: 'UTC',
-  }).format(new Date(Date.UTC(year, month - 1, 1)));
-
   return (
     <section className="rounded-2xl border border-zinc-200 bg-white p-6">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold text-zinc-900">Calendário de eventos fixos</h2>
           <p className="mt-1 text-sm text-zinc-600">
-            Clique nos dias para marcar ou desmarcar eventos do período.
+            Clique nos dias para marcar ou desmarcar eventos. Este é o mês de trabalho de toda a
+            organização.
           </p>
         </div>
         <div className="flex items-center gap-2">
           <button
             type="button"
-            className="rounded-lg border px-3 py-1.5 text-sm"
-            onClick={() => shiftMonth(-1)}
+            disabled={!canGoBack || isPending}
+            title={canGoBack ? undefined : 'Não é possível trabalhar em meses anteriores.'}
+            className="rounded-lg border px-3 py-1.5 text-sm disabled:opacity-40"
+            onClick={() => requestMonthChange(-1)}
           >
             ‹
           </button>
-          <span className="min-w-36 text-center text-sm font-medium capitalize">{monthLabel}</span>
+          <span className="min-w-36 text-center text-sm font-medium capitalize">
+            {formatYearMonth(workingMonth)}
+          </span>
           <button
             type="button"
-            className="rounded-lg border px-3 py-1.5 text-sm"
-            onClick={() => shiftMonth(1)}
+            disabled={isPending}
+            className="rounded-lg border px-3 py-1.5 text-sm disabled:opacity-40"
+            onClick={() => requestMonthChange(1)}
           >
             ›
           </button>
@@ -116,6 +141,36 @@ export function EventCalendar({
           ),
         )}
       </div>
+
+      {pendingMonth ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+            <h3 className="text-lg font-semibold text-zinc-900">Trocar o mês de trabalho?</h3>
+            <p className="mt-3 text-sm leading-6 text-zinc-700">
+              Escala e disponibilidade de todos passam a usar{' '}
+              <span className="font-medium capitalize">{formatYearMonth(pendingMonth)}</span>. Quem
+              estiver marcando disponibilidade vai trocar de mês na hora — o que já foi enviado
+              continua salvo.
+            </p>
+            <div className="mt-6 flex gap-2">
+              <button
+                type="button"
+                className="flex-1 rounded-lg border px-4 py-2 text-sm"
+                onClick={() => setPendingMonth(null)}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="flex-1 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white"
+                onClick={confirmMonthChange}
+              >
+                Trocar mês
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }

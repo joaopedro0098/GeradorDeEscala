@@ -71,7 +71,7 @@ describe('computeShortage — STRICT member groups', () => {
       requirements,
       members,
       events: [event('e1', '2026-08-02')],
-      intervalRules: [],
+      intervalRule: null,
       groups,
     });
 
@@ -93,7 +93,7 @@ describe('computeShortage — STRICT member groups', () => {
       requirements,
       members,
       events: [event('e1', '2026-08-02')],
-      intervalRules: [],
+      intervalRule: null,
       groups,
     });
 
@@ -114,7 +114,7 @@ describe('computeShortage — STRICT member groups', () => {
       requirements,
       members,
       events: [event('e1', '2026-08-02')],
-      intervalRules: [],
+      intervalRule: null,
       groups,
     });
 

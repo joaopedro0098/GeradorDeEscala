@@ -2,7 +2,9 @@
 
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { MonthHistorySelect } from '@/components/scheduling/month-history-select';
 import { buildMonthGrid } from '@/modules/scheduling/configuration.logic';
+import { formatYearMonth, type YearMonth } from '@/modules/scheduling/working-month.logic';
 import {
   countBlankSlotsInEvent,
   countBlankSlotsInOverview,
@@ -67,17 +69,23 @@ function EventScheduleCard({ event }: { event: ScheduleEventView }) {
 }
 
 export function ScheduleMemberView({
-  initialYear,
-  initialMonth,
+  workingMonth,
+  viewedMonth,
+  isHistory,
+  historyMonths,
   initialSelectedDate,
   overview,
   readOnly = false,
+  isOffline = false,
 }: {
-  initialYear: number;
-  initialMonth: number;
+  workingMonth: YearMonth;
+  viewedMonth: YearMonth;
+  isHistory: boolean;
+  historyMonths: YearMonth[];
   initialSelectedDate?: string | null;
   overview: ScheduleOverview | null;
   readOnly?: boolean;
+  isOffline?: boolean;
 }) {
   const router = useRouter();
   const [localSelectedDate, setLocalSelectedDate] = useState<string | null>(
@@ -89,8 +97,8 @@ export function ScheduleMemberView({
     [overview?.events],
   );
   const monthCells = useMemo(
-    () => buildMonthGrid(initialYear, initialMonth),
-    [initialYear, initialMonth],
+    () => buildMonthGrid(viewedMonth.year, viewedMonth.month),
+    [viewedMonth],
   );
   const gapDates = useMemo(
     () => new Set(datesWithBlankSlots(overview?.events ?? [])),
@@ -110,16 +118,15 @@ export function ScheduleMemberView({
       : null;
   const selectedEvent = selectedDate ? eventsByDate.get(selectedDate) : undefined;
 
-  function navigateMonth(year: number, month: number, date?: string | null) {
-    const params = new URLSearchParams({ year: String(year), month: String(month) });
+  function navigateMonth(month: YearMonth, date?: string | null) {
+    const params = new URLSearchParams();
+    if (isHistory) {
+      params.set('year', String(month.year));
+      params.set('month', String(month.month));
+    }
     if (date) params.set('date', date);
-    router.push(`/membro/escala?${params.toString()}`);
-  }
-
-  function shiftMonth(delta: number) {
-    if (readOnly) return;
-    const next = new Date(Date.UTC(initialYear, initialMonth - 1 + delta, 1));
-    navigateMonth(next.getUTCFullYear(), next.getUTCMonth() + 1);
+    const query = params.toString();
+    router.push(query ? `/membro/escala?${query}` : '/membro/escala');
   }
 
   function selectDate(dateKey: string) {
@@ -128,48 +135,34 @@ export function ScheduleMemberView({
       return;
     }
     if (selectedDate === dateKey) {
-      navigateMonth(initialYear, initialMonth);
+      navigateMonth(viewedMonth);
       return;
     }
-    navigateMonth(initialYear, initialMonth, dateKey);
+    navigateMonth(viewedMonth, dateKey);
   }
-
-  const monthLabel = new Intl.DateTimeFormat('pt-BR', {
-    month: 'long',
-    year: 'numeric',
-    timeZone: 'UTC',
-  }).format(new Date(Date.UTC(initialYear, initialMonth - 1, 1)));
 
   return (
     <div className="space-y-4">
       <section className="rounded-2xl border border-zinc-200 bg-white p-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h2 className="text-lg font-semibold text-zinc-900">Escala do período</h2>
+            <h2 className="text-lg font-semibold text-zinc-900">
+              Escala de <span className="capitalize">{formatYearMonth(viewedMonth)}</span>
+            </h2>
             <p className="mt-1 text-sm text-zinc-600">
-              Consulte quem está escalado em cada evento. Clique num dia no calendário para ver a
-              escala daquele culto.
+              {isHistory
+                ? 'Escala de um mês encerrado, apenas para consulta.'
+                : 'Consulte quem está escalado em cada evento. Clique num dia no calendário para ver a escala daquele culto.'}
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              disabled={readOnly}
-              className="rounded-lg border px-3 py-1.5 text-sm disabled:opacity-40"
-              onClick={() => shiftMonth(-1)}
-            >
-              ‹
-            </button>
-            <span className="min-w-36 text-center text-sm font-medium capitalize">{monthLabel}</span>
-            <button
-              type="button"
-              disabled={readOnly}
-              className="rounded-lg border px-3 py-1.5 text-sm disabled:opacity-40"
-              onClick={() => shiftMonth(1)}
-            >
-              ›
-            </button>
-          </div>
+          <MonthHistorySelect
+            basePath="/membro/escala"
+            workingMonth={workingMonth}
+            viewedMonth={viewedMonth}
+            isHistory={isHistory}
+            historyMonths={historyMonths}
+            disabled={isOffline}
+          />
         </div>
 
         {overview?.hasPublishedGaps ? (
@@ -244,7 +237,7 @@ export function ScheduleMemberView({
                   type="button"
                   className="text-sm text-zinc-600 underline hover:text-zinc-900"
                   onClick={() =>
-                    readOnly ? setLocalSelectedDate(null) : navigateMonth(initialYear, initialMonth)
+                    readOnly ? setLocalSelectedDate(null) : navigateMonth(viewedMonth)
                   }
                 >
                   Ver todos os eventos

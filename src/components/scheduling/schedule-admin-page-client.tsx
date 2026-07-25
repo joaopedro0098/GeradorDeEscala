@@ -12,18 +12,23 @@ import type {
   ScheduleOverview,
   ShortageEntryView,
 } from '@/modules/scheduling/schedule.types';
+import type { YearMonth } from '@/modules/scheduling/working-month.logic';
 
 export function ScheduleAdminPageClient({
   organizationId,
-  initialYear,
-  initialMonth,
+  workingMonth,
+  viewedMonth,
+  isHistory,
+  historyMonths,
   serverOverview,
   shortagePreview,
   assignmentCandidates,
 }: {
   organizationId: string;
-  initialYear: number;
-  initialMonth: number;
+  workingMonth: YearMonth;
+  viewedMonth: YearMonth;
+  isHistory: boolean;
+  historyMonths: YearMonth[];
   serverOverview: ScheduleOverview | null;
   shortagePreview: ShortageEntryView[];
   assignmentCandidates: ScheduleAssignmentCandidate[];
@@ -33,8 +38,8 @@ export function ScheduleAdminPageClient({
     resolveOfflineScheduleView({
       audience: 'admin',
       organizationId,
-      year: initialYear,
-      month: initialMonth,
+      year: viewedMonth.year,
+      month: viewedMonth.month,
       serverOverview,
       isOnline: true,
     }),
@@ -48,8 +53,8 @@ export function ScheduleAdminPageClient({
         resolveOfflineScheduleView({
           audience: 'admin',
           organizationId,
-          year: initialYear,
-          month: initialMonth,
+          year: viewedMonth.year,
+          month: viewedMonth.month,
           serverOverview,
           isOnline: online,
         }),
@@ -63,22 +68,22 @@ export function ScheduleAdminPageClient({
       window.removeEventListener('online', syncConnectivity);
       window.removeEventListener('offline', syncConnectivity);
     };
-  }, [organizationId, initialYear, initialMonth, serverOverview]);
+  }, [organizationId, viewedMonth, serverOverview]);
 
   useEffect(() => {
     if (!isOnline || !serverOverview) return;
     saveLastScheduleView('admin', organizationId, {
-      year: initialYear,
-      month: initialMonth,
+      year: viewedMonth.year,
+      month: viewedMonth.month,
       overview: serverOverview,
     });
-  }, [isOnline, organizationId, initialYear, initialMonth, serverOverview]);
+  }, [isOnline, organizationId, viewedMonth, serverOverview]);
 
-  const displayOverview = resolved.overview;
-  const displayYear =
-    resolved.mode === 'cached' && resolved.cachedYear ? resolved.cachedYear : initialYear;
+  const isCached = resolved.mode === 'cached';
   const displayMonth =
-    resolved.mode === 'cached' && resolved.cachedMonth ? resolved.cachedMonth : initialMonth;
+    isCached && resolved.cachedYear && resolved.cachedMonth
+      ? { year: resolved.cachedYear, month: resolved.cachedMonth }
+      : viewedMonth;
 
   return (
     <div className="space-y-4">
@@ -87,16 +92,19 @@ export function ScheduleAdminPageClient({
         cachedAt={resolved.cachedAt}
         cachedYear={resolved.cachedYear}
         cachedMonth={resolved.cachedMonth}
-        requestedYear={initialYear}
-        requestedMonth={initialMonth}
+        requestedYear={viewedMonth.year}
+        requestedMonth={viewedMonth.month}
       />
       <ScheduleAdminView
-        initialYear={displayYear}
-        initialMonth={displayMonth}
-        overview={displayOverview}
-        shortagePreview={resolved.mode === 'live' ? shortagePreview : []}
-        assignmentCandidates={resolved.mode === 'live' ? assignmentCandidates : []}
-        readOnly={resolved.mode === 'cached'}
+        workingMonth={workingMonth}
+        viewedMonth={displayMonth}
+        isHistory={isHistory}
+        historyMonths={historyMonths}
+        overview={resolved.overview}
+        shortagePreview={isCached ? [] : shortagePreview}
+        assignmentCandidates={isCached ? [] : assignmentCandidates}
+        readOnly={isCached || isHistory}
+        isOffline={isCached}
       />
     </div>
   );

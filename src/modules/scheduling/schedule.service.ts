@@ -228,13 +228,10 @@ async function loadActiveMembers(organizationId: string, eventIds: string[]) {
   }));
 }
 
-async function loadIntervalRules(organizationId: string) {
-  const rules = await prisma.intervalRule.findMany({ where: { organizationId } });
-  return rules.map((rule) => ({
-    roleId: rule.roleId,
-    intervalCount: rule.intervalCount,
-    countMode: rule.countMode,
-  }));
+async function loadIntervalRule(organizationId: string) {
+  const rule = await prisma.intervalRule.findUnique({ where: { organizationId } });
+  if (!rule) return null;
+  return { intervalCount: rule.intervalCount, countMode: rule.countMode };
 }
 
 async function loadPriorityRoles(organizationId: string) {
@@ -295,17 +292,17 @@ async function buildSchedulingContext(organizationId: string, year: number, mont
   const events = await loadEventsForMonth(organizationId, year, month);
   const eventIds = events.map((event) => event.id);
 
-  const [members, intervalRules, priorityRoles, dayRequirements, groups, priorMonthSlots] =
+  const [members, intervalRule, priorityRoles, dayRequirements, groups, priorMonthSlots] =
     await Promise.all([
       loadActiveMembers(organizationId, eventIds),
-      loadIntervalRules(organizationId),
+      loadIntervalRule(organizationId),
       loadPriorityRoles(organizationId),
       loadDayRequirements(organizationId),
       loadGroups(organizationId),
       loadPriorMonthSlots(organizationId, year, month),
     ]);
 
-  return { events, members, intervalRules, priorityRoles, dayRequirements, groups, priorMonthSlots };
+  return { events, members, intervalRule, priorityRoles, dayRequirements, groups, priorMonthSlots };
 }
 
 type LookupMaps = {
@@ -357,7 +354,7 @@ export async function getPreGenerationShortagePreview(
     requirements,
     members: context.members,
     events: context.events,
-    intervalRules: context.intervalRules,
+    intervalRule: context.intervalRule,
     groups: buildSolverGroups(context.groups),
   });
 
@@ -401,7 +398,7 @@ export async function generateSchedule(
     events: context.events,
     dayRequirements: context.dayRequirements,
     members: context.members,
-    intervalRules: context.intervalRules,
+    intervalRule: context.intervalRule,
     priorityRoles: context.priorityRoles,
     priorMonthSlots: context.priorMonthSlots,
     groups: context.groups,

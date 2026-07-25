@@ -8,17 +8,22 @@ import {
   saveLastScheduleView,
 } from '@/lib/schedule-offline-cache';
 import type { ScheduleOverview } from '@/modules/scheduling/schedule.types';
+import type { YearMonth } from '@/modules/scheduling/working-month.logic';
 
 export function ScheduleMemberPageClient({
   organizationId,
-  initialYear,
-  initialMonth,
+  workingMonth,
+  viewedMonth,
+  isHistory,
+  historyMonths,
   initialSelectedDate,
   serverOverview,
 }: {
   organizationId: string;
-  initialYear: number;
-  initialMonth: number;
+  workingMonth: YearMonth;
+  viewedMonth: YearMonth;
+  isHistory: boolean;
+  historyMonths: YearMonth[];
   initialSelectedDate?: string | null;
   serverOverview: ScheduleOverview | null;
 }) {
@@ -27,8 +32,8 @@ export function ScheduleMemberPageClient({
     resolveOfflineScheduleView({
       audience: 'member',
       organizationId,
-      year: initialYear,
-      month: initialMonth,
+      year: viewedMonth.year,
+      month: viewedMonth.month,
       serverOverview,
       isOnline: true,
     }),
@@ -42,8 +47,8 @@ export function ScheduleMemberPageClient({
         resolveOfflineScheduleView({
           audience: 'member',
           organizationId,
-          year: initialYear,
-          month: initialMonth,
+          year: viewedMonth.year,
+          month: viewedMonth.month,
           serverOverview,
           isOnline: online,
         }),
@@ -57,25 +62,25 @@ export function ScheduleMemberPageClient({
       window.removeEventListener('online', syncConnectivity);
       window.removeEventListener('offline', syncConnectivity);
     };
-  }, [organizationId, initialYear, initialMonth, serverOverview]);
+  }, [organizationId, viewedMonth, serverOverview]);
 
   useEffect(() => {
     if (!isOnline || !serverOverview) return;
     saveLastScheduleView('member', organizationId, {
-      year: initialYear,
-      month: initialMonth,
+      year: viewedMonth.year,
+      month: viewedMonth.month,
       selectedDate: initialSelectedDate,
       overview: serverOverview,
     });
-  }, [isOnline, organizationId, initialYear, initialMonth, initialSelectedDate, serverOverview]);
+  }, [isOnline, organizationId, viewedMonth, initialSelectedDate, serverOverview]);
 
-  const displayOverview = resolved.overview;
-  const displayYear =
-    resolved.mode === 'cached' && resolved.cachedYear ? resolved.cachedYear : initialYear;
+  const isCached = resolved.mode === 'cached';
   const displayMonth =
-    resolved.mode === 'cached' && resolved.cachedMonth ? resolved.cachedMonth : initialMonth;
+    isCached && resolved.cachedYear && resolved.cachedMonth
+      ? { year: resolved.cachedYear, month: resolved.cachedMonth }
+      : viewedMonth;
   const displaySelectedDate =
-    resolved.mode === 'cached' && resolved.cachedYear !== initialYear ? null : initialSelectedDate;
+    isCached && resolved.cachedYear !== viewedMonth.year ? null : initialSelectedDate;
 
   return (
     <div className="space-y-4">
@@ -84,21 +89,20 @@ export function ScheduleMemberPageClient({
         cachedAt={resolved.cachedAt}
         cachedYear={resolved.cachedYear}
         cachedMonth={resolved.cachedMonth}
-        requestedYear={initialYear}
-        requestedMonth={initialMonth}
+        requestedYear={viewedMonth.year}
+        requestedMonth={viewedMonth.month}
       />
-      {displayOverview ? (
+      {resolved.mode === 'unavailable' ? null : (
         <ScheduleMemberView
-          initialYear={displayYear}
-          initialMonth={displayMonth}
+          workingMonth={workingMonth}
+          viewedMonth={displayMonth}
+          isHistory={isHistory}
+          historyMonths={historyMonths}
           initialSelectedDate={displaySelectedDate}
-          overview={displayOverview}
-          readOnly={resolved.mode === 'cached'}
+          overview={resolved.overview}
+          readOnly={isCached}
+          isOffline={isCached}
         />
-      ) : resolved.mode === 'unavailable' ? null : (
-        <p className="rounded-2xl border border-zinc-200 bg-white p-6 text-sm text-zinc-600">
-          A escala deste mês ainda não foi publicada.
-        </p>
       )}
     </div>
   );

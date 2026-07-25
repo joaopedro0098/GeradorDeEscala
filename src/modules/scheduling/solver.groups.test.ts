@@ -30,7 +30,7 @@ describe('resolveGroupPlacements', () => {
       events: [event('e1', '2026-08-02')],
       requirements: [{ eventId: 'e1', roleId: 'vocal', quantity: 1 }],
       members: [member('a', ['vocal'], ['e1'])],
-      intervalRules: [],
+      intervalRule: null,
       groups: [],
     });
 
@@ -46,7 +46,7 @@ describe('resolveGroupPlacements', () => {
         { eventId: 'e1', roleId: 'vocal', quantity: 1 },
       ],
       members: [member('a', ['drums'], ['e1']), member('b', ['vocal'], ['e1'])],
-      intervalRules: [],
+      intervalRule: null,
       groups: [{ groupId: 'g1', mode: 'FLEXIBLE', membershipIds: ['a', 'b'] }],
     });
 
@@ -62,7 +62,7 @@ describe('resolveGroupPlacements', () => {
         { eventId: 'e1', roleId: 'vocal', quantity: 1 },
       ],
       members: [member('a', ['drums'], ['e1']), member('b', ['vocal'], ['e1'])],
-      intervalRules: [],
+      intervalRule: null,
       groups: [group('g1', ['a', 'b'])],
     });
 
@@ -83,7 +83,7 @@ describe('resolveGroupPlacements', () => {
         { eventId: 'e1', roleId: 'vocal', quantity: 1 },
       ],
       members: [member('a', ['drums'], ['e1']), member('b', ['vocal'], [])],
-      intervalRules: [],
+      intervalRule: null,
       groups: [group('g1', ['a', 'b'])],
     });
 
@@ -97,7 +97,7 @@ describe('resolveGroupPlacements', () => {
       events: [event('e1', '2026-08-02')],
       requirements: [{ eventId: 'e1', roleId: 'drums', quantity: 1 }],
       members: [member('a', ['drums'], ['e1']), member('b', ['drums'], ['e1'])],
-      intervalRules: [],
+      intervalRule: null,
       groups: [group('g1', ['a', 'b'])],
     });
 
@@ -111,7 +111,7 @@ describe('resolveGroupPlacements', () => {
       events: [event('e1', '2026-08-02')],
       requirements: [{ eventId: 'e1', roleId: 'drums', quantity: 1 }],
       members: [member('a', ['drums'], ['e1']), member('b', ['vocal'], ['e1'])],
-      intervalRules: [],
+      intervalRule: null,
       groups: [group('g1', ['a', 'b'])],
     });
 
@@ -120,7 +120,7 @@ describe('resolveGroupPlacements', () => {
   });
 
   it('respects the interval rule when matching a STRICT group across events (no relaxation)', () => {
-    const rule: SolverIntervalRuleInput = { roleId: null, intervalCount: 1, countMode: 'BY_EVENT' };
+    const rule: SolverIntervalRuleInput = { intervalCount: 1, countMode: 'BY_EVENT' };
     const requirements: SolverRequirementInput[] = [
       { eventId: 'e1', roleId: 'vocal', quantity: 1 },
       { eventId: 'e2', roleId: 'vocal', quantity: 1 },
@@ -129,7 +129,7 @@ describe('resolveGroupPlacements', () => {
       events: [event('e1', '2026-08-02'), event('e2', '2026-08-05')],
       requirements,
       members: [member('a', ['vocal'], ['e1', 'e2'])],
-      intervalRules: [rule],
+      intervalRule: rule,
       groups: [group('g1', ['a'])],
     });
 
@@ -150,7 +150,7 @@ describe('resolveGroupPlacements', () => {
         { eventId: 'e1', roleId: 'vocal', quantity: 1 },
       ],
       members: [member('a', ['drums', 'vocal'], ['e1']), member('b', ['drums', 'vocal'], ['e1'])],
-      intervalRules: [],
+      intervalRule: null,
       groups: [group('g1', ['a', 'b'])],
     });
 
@@ -171,7 +171,7 @@ describe('resolveGroupPlacements', () => {
         member('c', ['vocal'], ['e1']),
         member('d', ['vocal'], ['e1']),
       ],
-      intervalRules: [],
+      intervalRule: null,
       groups: [group('g1', ['a', 'b']), group('g2', ['c', 'd'])],
     });
 

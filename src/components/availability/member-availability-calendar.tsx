@@ -1,7 +1,6 @@
 'use client';
 
 import { useMemo, useState, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
 import {
   getSubmitAvailabilityPreviewAction,
   submitAvailabilityAction,
@@ -9,25 +8,23 @@ import {
 } from '@/modules/availability/actions';
 import { buildMonthGrid } from '@/modules/scheduling/configuration.logic';
 import type { SubmitConfirmation } from '@/modules/availability/availability.logic';
+import { formatYearMonth, type YearMonth } from '@/modules/scheduling/working-month.logic';
 
 const WEEKDAY_LABELS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
 type EventItem = { id: string; date: string };
 
 export function MemberAvailabilityCalendar({
-  initialYear,
-  initialMonth,
+  workingMonth,
   events,
   initialMarkedEventIds,
   minimumDays,
 }: {
-  initialYear: number;
-  initialMonth: number;
+  workingMonth: YearMonth;
   events: EventItem[];
   initialMarkedEventIds: string[];
   minimumDays: number;
 }) {
-  const router = useRouter();
   const [markedEventIds, setMarkedEventIds] = useState(new Set(initialMarkedEventIds));
   const [isPending, startTransition] = useTransition();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -40,17 +37,10 @@ export function MemberAvailabilityCalendar({
     [events],
   );
   const monthCells = useMemo(
-    () => buildMonthGrid(initialYear, initialMonth),
-    [initialYear, initialMonth],
+    () => buildMonthGrid(workingMonth.year, workingMonth.month),
+    [workingMonth],
   );
   const selectedDays = markedEventIds.size;
-
-  function shiftMonth(delta: number) {
-    const next = new Date(Date.UTC(initialYear, initialMonth - 1 + delta, 1));
-    router.push(
-      `/membro/disponibilidade?year=${next.getUTCFullYear()}&month=${next.getUTCMonth() + 1}`,
-    );
-  }
 
   function toggleDay(dateKey: string) {
     const event = eventsByDate.get(dateKey);
@@ -59,7 +49,7 @@ export function MemberAvailabilityCalendar({
     startTransition(async () => {
       setError(null);
       try {
-        await toggleAvailabilityAction(event.id, initialYear, initialMonth);
+        await toggleAvailabilityAction(event.id);
         setMarkedEventIds((current) => {
           const next = new Set(current);
           if (next.has(event.id)) {
@@ -78,44 +68,31 @@ export function MemberAvailabilityCalendar({
   async function openSubmitDialog() {
     setError(null);
     setFeedback(null);
-    const nextPreview = await getSubmitAvailabilityPreviewAction(initialYear, initialMonth);
+    const nextPreview = await getSubmitAvailabilityPreviewAction();
     setPreview(nextPreview);
     setDialogOpen(true);
   }
 
   async function confirmSubmit() {
     startTransition(async () => {
-      const result = await submitAvailabilityAction(initialYear, initialMonth);
+      const result = await submitAvailabilityAction();
       setDialogOpen(false);
       setFeedback(result.message);
     });
   }
 
-  const monthLabel = new Intl.DateTimeFormat('pt-BR', {
-    month: 'long',
-    year: 'numeric',
-    timeZone: 'UTC',
-  }).format(new Date(Date.UTC(initialYear, initialMonth - 1, 1)));
-
   return (
     <div className="space-y-4">
       <section className="rounded-2xl border border-zinc-200 bg-white p-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h2 className="text-lg font-semibold text-zinc-900">Marcar disponibilidade</h2>
+            <h2 className="text-lg font-semibold text-zinc-900">
+              Disponibilidade de <span className="capitalize">{formatYearMonth(workingMonth)}</span>
+            </h2>
             <p className="mt-1 text-sm text-zinc-600">
               Selecione os dias em que você pode participar. Mínimo configurado: {minimumDays}{' '}
               dia(s).
             </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <button type="button" className="rounded-lg border px-3 py-1.5 text-sm" onClick={() => shiftMonth(-1)}>
-              ‹
-            </button>
-            <span className="min-w-36 text-center text-sm font-medium capitalize">{monthLabel}</span>
-            <button type="button" className="rounded-lg border px-3 py-1.5 text-sm" onClick={() => shiftMonth(1)}>
-              ›
-            </button>
           </div>
         </div>
 

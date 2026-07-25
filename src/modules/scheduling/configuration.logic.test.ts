@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  buildIntervalScopeKey,
   buildMonthGrid,
   formatDateKey,
   getDayOfWeekFromDateKey,
@@ -33,11 +32,6 @@ describe('configuration.logic', () => {
     expect(validateQuantity(-1)).toBe(false);
     expect(validateMinimumDays(4)).toBe(true);
     expect(validateIntervalCount(1)).toBe(true);
-  });
-
-  it('builds interval scope keys', () => {
-    expect(buildIntervalScopeKey()).toBe('GENERAL');
-    expect(buildIntervalScopeKey('role-1')).toBe('role-1');
   });
 
   it('reorders priority roles without mutating original list', () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { buildIntervalConflictMap, resolveIntervalRule } from './solver.interval';
-import type { SolverEventInput, SolverIntervalRuleInput } from './solver.types';
+import { buildIntervalConflictMap, createIntervalChecker } from './solver.interval';
+import type { SolverEventInput } from './solver.types';
 
 const WED = (n: number): SolverEventInput => ({
   id: `wed-${n}`,
@@ -8,22 +8,25 @@ const WED = (n: number): SolverEventInput => ({
   dayOfWeek: 'WEDNESDAY',
 });
 
-describe('resolveIntervalRule', () => {
-  const rules: SolverIntervalRuleInput[] = [
-    { roleId: null, intervalCount: 1, countMode: 'BY_EVENT' },
-    { roleId: 'drums', intervalCount: 2, countMode: 'BY_DAY_OF_WEEK' },
+describe('createIntervalChecker', () => {
+  const events: SolverEventInput[] = [
+    { id: 'e1', date: '2026-08-05', dayOfWeek: 'WEDNESDAY' },
+    { id: 'e2', date: '2026-08-07', dayOfWeek: 'FRIDAY' },
+    { id: 'e3', date: '2026-08-09', dayOfWeek: 'SUNDAY' },
   ];
 
-  it('prefers the role-specific rule over the general rule', () => {
-    expect(resolveIntervalRule('drums', rules)).toEqual(rules[1]);
+  it('flags a conflict regardless of which role the history entry used', () => {
+    const violates = createIntervalChecker(events, { intervalCount: 1, countMode: 'BY_EVENT' });
+    expect(violates([{ eventId: 'e1', roleId: 'drums' }], 'e2')).toBe(true);
+    expect(violates([{ eventId: 'e1', roleId: 'drums' }], 'e3')).toBe(false);
   });
 
-  it('falls back to the general rule when no role-specific rule exists', () => {
-    expect(resolveIntervalRule('vocals', rules)).toEqual(rules[0]);
-  });
-
-  it('returns null when neither exists', () => {
-    expect(resolveIntervalRule('vocals', [])).toBeNull();
+  it('never flags a conflict without a rule or with interval zero', () => {
+    expect(createIntervalChecker(events, null)([{ eventId: 'e1', roleId: 'drums' }], 'e2')).toBe(
+      false,
+    );
+    const zeroed = createIntervalChecker(events, { intervalCount: 0, countMode: 'BY_EVENT' });
+    expect(zeroed([{ eventId: 'e1', roleId: 'drums' }], 'e2')).toBe(false);
   });
 });
 
@@ -37,7 +40,6 @@ describe('buildIntervalConflictMap — BY_EVENT', () => {
     ];
 
     const map = buildIntervalConflictMap(events, {
-      roleId: null,
       intervalCount: 1,
       countMode: 'BY_EVENT',
     });
@@ -56,7 +58,6 @@ describe('buildIntervalConflictMap — BY_EVENT', () => {
     ];
 
     const map = buildIntervalConflictMap(events, {
-      roleId: null,
       intervalCount: 2,
       countMode: 'BY_EVENT',
     });
@@ -71,7 +72,6 @@ describe('buildIntervalConflictMap — BY_EVENT', () => {
     ];
 
     const map = buildIntervalConflictMap(events, {
-      roleId: null,
       intervalCount: 0,
       countMode: 'BY_EVENT',
     });
@@ -92,7 +92,6 @@ describe('buildIntervalConflictMap — BY_DAY_OF_WEEK', () => {
     ];
 
     const map = buildIntervalConflictMap(events, {
-      roleId: null,
       intervalCount: 1,
       countMode: 'BY_DAY_OF_WEEK',
     });

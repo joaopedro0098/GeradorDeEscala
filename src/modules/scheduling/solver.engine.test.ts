@@ -49,7 +49,7 @@ describe('solveSchedule — baseline behavior', () => {
         { eventId: 'e2', roleId: 'vocal', quantity: 1 },
       ],
       members: [member('m1', ['vocal'], ['e1', 'e2']), member('m2', ['vocal'], ['e1', 'e2'])],
-      intervalRules: [],
+      intervalRule: null,
       priorityRoles: [],
     };
 
@@ -65,7 +65,7 @@ describe('solveSchedule — baseline behavior', () => {
       events: [event('e1', '2026-08-02')],
       requirements: [{ eventId: 'e1', roleId: 'vocal', quantity: 1 }],
       members: [member('unavailable', ['vocal'], [])],
-      intervalRules: [],
+      intervalRule: null,
       priorityRoles: [{ roleId: 'vocal', sortOrder: 1 }],
     };
 
@@ -78,7 +78,7 @@ describe('solveSchedule — baseline behavior', () => {
 
 describe('solveSchedule — 4.1 interval rule', () => {
   it('blocks reassignment within the general BY_EVENT interval window', () => {
-    const rule: SolverIntervalRuleInput = { roleId: null, intervalCount: 1, countMode: 'BY_EVENT' };
+    const rule: SolverIntervalRuleInput = { intervalCount: 1, countMode: 'BY_EVENT' };
     const input: SolverInput = {
       events: [event('e1', '2026-08-02'), event('e2', '2026-08-05')],
       requirements: [
@@ -86,7 +86,7 @@ describe('solveSchedule — 4.1 interval rule', () => {
         { eventId: 'e2', roleId: 'drums', quantity: 1 },
       ],
       members: [member('only-one', ['drums'], ['e1', 'e2'])],
-      intervalRules: [rule],
+      intervalRule: rule,
       priorityRoles: [],
     };
 
@@ -110,7 +110,6 @@ describe('solveSchedule — 4.1 interval rule', () => {
     });
 
     const rule: SolverIntervalRuleInput = {
-      roleId: null,
       intervalCount: 1,
       countMode: 'BY_DAY_OF_WEEK',
     };
@@ -127,7 +126,7 @@ describe('solveSchedule — 4.1 interval rule', () => {
         { eventId: 'wed2', roleId: 'vocal', quantity: 1 },
       ],
       members: [member('m1', ['vocal'], ['wed1', 'fri1', 'wed2'])],
-      intervalRules: [rule],
+      intervalRule: rule,
       priorityRoles: [],
     };
 
@@ -140,32 +139,22 @@ describe('solveSchedule — 4.1 interval rule', () => {
     expect(slotFor(result, 'wed2', 'vocal')?.membershipId).toBeNull();
   });
 
-  it('lets a role-specific rule override the general rule for that role only', () => {
+  it('counts occurrences across roles, so serving one role blocks another in the next event', () => {
     const input: SolverInput = {
       events: [event('e1', '2026-08-02'), event('e2', '2026-08-05')],
       requirements: [
-        { eventId: 'e1', roleId: 'drums', quantity: 1 },
-        { eventId: 'e2', roleId: 'drums', quantity: 1 },
         { eventId: 'e1', roleId: 'vocal', quantity: 1 },
-        { eventId: 'e2', roleId: 'vocal', quantity: 1 },
+        { eventId: 'e2', roleId: 'drums', quantity: 1 },
       ],
-      members: [
-        member('a', ['drums', 'vocal'], ['e1', 'e2']),
-        member('b', ['drums', 'vocal'], ['e1', 'e2']),
-      ],
-      intervalRules: [{ roleId: 'drums', intervalCount: 1, countMode: 'BY_EVENT' }],
+      members: [member('a', ['vocal', 'drums'], ['e1', 'e2'])],
+      intervalRule: { intervalCount: 1, countMode: 'BY_EVENT' },
       priorityRoles: [],
     };
 
     const result = solveSchedule(input);
 
-    const drumsE1 = slotFor(result, 'e1', 'drums')?.membershipId;
-    const drumsE2 = slotFor(result, 'e2', 'drums')?.membershipId;
-
-    expect(drumsE1).not.toBeNull();
-    expect(drumsE2).not.toBeNull();
-    expect(drumsE1).not.toBe(drumsE2);
-    expect(result.status).toBe('COMPLETE');
+    expect(slotFor(result, 'e1', 'vocal')?.membershipId).toBe('a');
+    expect(slotFor(result, 'e2', 'drums')?.membershipId).toBeNull();
   });
 });
 
@@ -179,7 +168,7 @@ describe('solveSchedule — 4.2 high priority (surplus scenario)', () => {
         { eventId: 'e1', roleId: 'guitar', quantity: 1 },
       ],
       members: [member('only-one', ['leadVocal', 'guitar'], ['e1'])],
-      intervalRules: [],
+      intervalRule: null,
       priorityRoles,
     };
 
@@ -201,7 +190,7 @@ describe('solveSchedule — 4.2 high priority (surplus scenario)', () => {
         { eventId: 'e1', roleId: 'keys', quantity: 1 },
       ],
       members: [member('only-one', ['leadVocal', 'keys'], ['e1'])],
-      intervalRules: [],
+      intervalRule: null,
       priorityRoles,
     };
 
@@ -215,7 +204,7 @@ describe('solveSchedule — 4.2 high priority (surplus scenario)', () => {
 describe('solveSchedule — 4.2 high priority (scarcity: relax interval)', () => {
   it('fills a priority role by violating interval when no other candidate exists, flagging the override', () => {
     const priorityRoles: SolverPriorityRoleInput[] = [{ roleId: 'vocal', sortOrder: 1 }];
-    const rule: SolverIntervalRuleInput = { roleId: null, intervalCount: 1, countMode: 'BY_EVENT' };
+    const rule: SolverIntervalRuleInput = { intervalCount: 1, countMode: 'BY_EVENT' };
     const input: SolverInput = {
       events: [event('e1', '2026-08-02'), event('e2', '2026-08-05')],
       requirements: [
@@ -223,7 +212,7 @@ describe('solveSchedule — 4.2 high priority (scarcity: relax interval)', () =>
         { eventId: 'e2', roleId: 'vocal', quantity: 1 },
       ],
       members: [member('only-one', ['vocal'], ['e1', 'e2'])],
-      intervalRules: [rule],
+      intervalRule: rule,
       priorityRoles,
     };
 
@@ -238,7 +227,7 @@ describe('solveSchedule — 4.2 high priority (scarcity: relax interval)', () =>
 
   it('among relaxed candidates, picks whoever has participated least in the current period', () => {
     const priorityRoles: SolverPriorityRoleInput[] = [{ roleId: 'vocal', sortOrder: 1 }];
-    const rule: SolverIntervalRuleInput = { roleId: null, intervalCount: 1, countMode: 'BY_EVENT' };
+    const rule: SolverIntervalRuleInput = { intervalCount: 1, countMode: 'BY_EVENT' };
     const input: SolverInput = {
       events: [event('e0', '2026-08-01'), event('e1', '2026-08-02'), event('e2', '2026-08-03')],
       requirements: [
@@ -250,7 +239,7 @@ describe('solveSchedule — 4.2 high priority (scarcity: relax interval)', () =>
       // extra occurrence before the double-booked e1 consumes both people,
       // which boxes in e2 (interval=1 blocks both m1 and m2 via e1).
       members: [member('m1', ['vocal'], ['e1', 'e2']), member('m2', ['vocal'], ['e0', 'e1', 'e2'])],
-      intervalRules: [rule],
+      intervalRule: rule,
       priorityRoles,
     };
 
@@ -274,7 +263,7 @@ describe('solveSchedule — 4.3 exclusivity, preference and equity', () => {
         member('joao', ['drums', 'bass'], ['e1']),
         member('diego', ['drums'], ['e1']),
       ],
-      intervalRules: [],
+      intervalRule: null,
       priorityRoles: [],
     };
 
@@ -291,7 +280,7 @@ describe('solveSchedule — 4.3 exclusivity, preference and equity', () => {
         member('prefers-bass-first', ['bass', 'guitar'], ['e1']),
         member('prefers-bass-second', ['guitar', 'bass'], ['e1']),
       ],
-      intervalRules: [],
+      intervalRule: null,
       priorityRoles: [],
     };
 
@@ -309,7 +298,7 @@ describe('solveSchedule — 4.3 exclusivity, preference and equity', () => {
         { eventId: 'e3', roleId: 'vocal', quantity: 1 },
       ],
       members: [member('a', ['vocal'], ['e1', 'e2', 'e3']), member('b', ['vocal'], ['e2', 'e3'])],
-      intervalRules: [],
+      intervalRule: null,
       priorityRoles: [],
     };
 
@@ -325,7 +314,7 @@ describe('solveSchedule — 4.3 exclusivity, preference and equity', () => {
       events: [event('e1', '2026-08-02')],
       requirements: [{ eventId: 'e1', roleId: 'vocal', quantity: 1 }],
       members: [member('recently-served', ['vocal'], ['e1']), member('due-for-a-turn', ['vocal'], ['e1'])],
-      intervalRules: [],
+      intervalRule: null,
       priorityRoles: [],
       priorMonthAssignments: [
         { membershipId: 'recently-served', roleId: 'vocal', count: 3 },
@@ -345,7 +334,7 @@ describe('solveSchedule — 4.4 shortage vs timeout status', () => {
       events: [event('e1', '2026-08-02')],
       requirements: [{ eventId: 'e1', roleId: 'drums', quantity: 2 }],
       members: [member('only-one', ['drums'], ['e1'])],
-      intervalRules: [],
+      intervalRule: null,
       priorityRoles: [],
     };
 
@@ -361,7 +350,7 @@ describe('solveSchedule — 4.4 shortage vs timeout status', () => {
       events: [event('e1', '2026-08-02')],
       requirements,
       members: [member('m1', ['vocal'], ['e1'])],
-      intervalRules: [],
+      intervalRule: null,
       priorityRoles: [],
       timeoutMs: 5,
       now: immediatelyExpiredClock(),
@@ -378,7 +367,7 @@ describe('solveSchedule — 4.4 shortage vs timeout status', () => {
       events: [event('e1', '2026-08-02')],
       requirements: [{ eventId: 'e1', roleId: 'vocal', quantity: 1 }],
       members: [member('m1', ['vocal'], ['e1'])],
-      intervalRules: [],
+      intervalRule: null,
       priorityRoles: [],
       timeoutMs: 8000,
     };
@@ -398,7 +387,7 @@ describe('solveSchedule — double-booking prevention', () => {
         { eventId: 'e1', roleId: 'bass', quantity: 1 },
       ],
       members: [member('multi', ['drums', 'bass'], ['e1']), member('backup', ['bass'], ['e1'])],
-      intervalRules: [],
+      intervalRule: null,
       priorityRoles: [],
     };
 
@@ -424,7 +413,7 @@ describe('solveSchedule — role accumulation (stacking)', () => {
         member('a', ['drums', 'vocal'], ['e1'], [['drums', 'vocal']]),
         member('b', ['vocal'], ['e1']),
       ],
-      intervalRules: [],
+      intervalRule: null,
       priorityRoles: [],
     };
 
@@ -443,7 +432,7 @@ describe('solveSchedule — role accumulation (stacking)', () => {
         { eventId: 'e1', roleId: 'vocal', quantity: 1 },
       ],
       members: [member('only-one', ['drums', 'vocal'], ['e1'], [['drums', 'vocal']])],
-      intervalRules: [],
+      intervalRule: null,
       priorityRoles: [],
     };
 
@@ -465,7 +454,7 @@ describe('solveSchedule — role accumulation (stacking)', () => {
       ],
       // Only marked drums+guitar as compatible, not drums+vocal.
       members: [member('only-one', ['drums', 'vocal'], ['e1'], [['drums', 'guitar']])],
-      intervalRules: [],
+      intervalRule: null,
       priorityRoles: [],
     };
 
@@ -495,7 +484,7 @@ describe('solveSchedule — role accumulation (stacking)', () => {
           ],
         ),
       ],
-      intervalRules: [],
+      intervalRule: null,
       priorityRoles: [],
     };
 
@@ -516,7 +505,7 @@ describe('solveSchedule — role accumulation (stacking)', () => {
       { roleId: 'guitar', sortOrder: 1 },
       { roleId: 'vocal', sortOrder: 2 },
     ];
-    const rule: SolverIntervalRuleInput = { roleId: null, intervalCount: 1, countMode: 'BY_EVENT' };
+    const rule: SolverIntervalRuleInput = { intervalCount: 1, countMode: 'BY_EVENT' };
     const input: SolverInput = {
       events: [event('e1', '2026-08-02'), event('e2', '2026-08-05')],
       requirements: [
@@ -528,7 +517,7 @@ describe('solveSchedule — role accumulation (stacking)', () => {
         member('a', ['vocal', 'guitar'], ['e1', 'e2'], [['guitar', 'vocal']]),
         member('b', ['vocal'], ['e1', 'e2']),
       ],
-      intervalRules: [rule],
+      intervalRule: rule,
       priorityRoles,
     };
 
@@ -551,7 +540,7 @@ describe('solveSchedule — role accumulation (stacking)', () => {
       { roleId: 'keys', sortOrder: 1 },
       { roleId: 'vocal', sortOrder: 2 },
     ];
-    const rule: SolverIntervalRuleInput = { roleId: null, intervalCount: 1, countMode: 'BY_EVENT' };
+    const rule: SolverIntervalRuleInput = { intervalCount: 1, countMode: 'BY_EVENT' };
     const input: SolverInput = {
       events: [event('e1', '2026-08-02'), event('e2', '2026-08-05')],
       requirements: [
@@ -560,7 +549,7 @@ describe('solveSchedule — role accumulation (stacking)', () => {
         { eventId: 'e2', roleId: 'vocal', quantity: 1 },
       ],
       members: [member('only-one', ['vocal', 'keys'], ['e1', 'e2'], [['keys', 'vocal']])],
-      intervalRules: [rule],
+      intervalRule: rule,
       priorityRoles,
     };
 
@@ -588,7 +577,7 @@ describe('solveSchedule — member groups (FLEXIBLE)', () => {
         member('b', ['vocal'], ['e1']),
         member('c', ['vocal'], ['e1']),
       ],
-      intervalRules: [],
+      intervalRule: null,
       priorityRoles: [],
       groups: [{ groupId: 'g1', mode: 'FLEXIBLE', membershipIds: ['a', 'b'] }],
     };
@@ -607,7 +596,7 @@ describe('solveSchedule — member groups (FLEXIBLE)', () => {
       events: [event('e1', '2026-08-02')],
       requirements: [{ eventId: 'e1', roleId: 'vocal', quantity: 1 }],
       members: [member('a', ['vocal'], ['e1']), member('b', ['vocal'], [])],
-      intervalRules: [],
+      intervalRule: null,
       priorityRoles: [],
       groups: [{ groupId: 'g1', mode: 'FLEXIBLE', membershipIds: ['a', 'b'] }],
     };
@@ -627,7 +616,7 @@ describe('solveSchedule — member groups (FLEXIBLE)', () => {
         member('multi-role-with-group', ['vocal', 'drums'], ['e1']),
         member('group-mate', ['drums'], ['e1']),
       ],
-      intervalRules: [],
+      intervalRule: null,
       priorityRoles: [],
       groups: [{ groupId: 'g1', mode: 'FLEXIBLE', membershipIds: ['multi-role-with-group', 'group-mate'] }],
     };
@@ -650,7 +639,7 @@ describe('solveSchedule — member groups (STRICT)', () => {
         { eventId: 'e1', roleId: 'vocal', quantity: 1 },
       ],
       members: [member('a', ['drums'], ['e1']), member('b', ['vocal'], ['e1'])],
-      intervalRules: [],
+      intervalRule: null,
       priorityRoles: [],
       groups: [{ groupId: 'g1', mode: 'STRICT', membershipIds: ['a', 'b'] }],
     };
@@ -673,7 +662,7 @@ describe('solveSchedule — member groups (STRICT)', () => {
         member('b', ['vocal'], []), // unavailable -> whole group excluded from e1
         member('backup', ['vocal'], ['e1']),
       ],
-      intervalRules: [],
+      intervalRule: null,
       priorityRoles: [],
       groups: [{ groupId: 'g1', mode: 'STRICT', membershipIds: ['a', 'b'] }],
     };
@@ -689,7 +678,7 @@ describe('solveSchedule — member groups (STRICT)', () => {
       events: [event('e1', '2026-08-02')],
       requirements: [{ eventId: 'e1', roleId: 'vocal', quantity: 1 }],
       members: [member('a', ['vocal'], ['e1']), member('b', ['vocal'], [])],
-      intervalRules: [],
+      intervalRule: null,
       priorityRoles: [],
       groups: [{ groupId: 'g1', mode: 'STRICT', membershipIds: ['a', 'b'] }],
     };
@@ -703,7 +692,7 @@ describe('solveSchedule — member groups (STRICT)', () => {
   });
 
   it('feeds STRICT group pins into equity and interval history for later events in the search', () => {
-    const rule: SolverIntervalRuleInput = { roleId: null, intervalCount: 1, countMode: 'BY_EVENT' };
+    const rule: SolverIntervalRuleInput = { intervalCount: 1, countMode: 'BY_EVENT' };
     const input: SolverInput = {
       events: [event('e1', '2026-08-02'), event('e2', '2026-08-05')],
       requirements: [
@@ -711,7 +700,7 @@ describe('solveSchedule — member groups (STRICT)', () => {
         { eventId: 'e2', roleId: 'vocal', quantity: 1 },
       ],
       members: [member('a', ['vocal'], ['e1', 'e2']), member('b', ['vocal'], ['e2'])],
-      intervalRules: [rule],
+      intervalRule: rule,
       priorityRoles: [],
       groups: [{ groupId: 'g1', mode: 'STRICT', membershipIds: ['a'] }],
     };
@@ -739,7 +728,7 @@ describe('solveSchedule — member groups (STRICT)', () => {
         member('a', ['drums', 'vocal'], ['e1'], [['drums', 'vocal']]),
         member('b', ['vocal'], ['e1']),
       ],
-      intervalRules: [],
+      intervalRule: null,
       priorityRoles: [],
       groups: [{ groupId: 'g1', mode: 'STRICT', membershipIds: ['a', 'b'] }],
     };
@@ -762,7 +751,7 @@ describe('solveSchedule — manual pins (keep_manual, spec 5.4)', () => {
         { eventId: 'e2', roleId: 'vocal', quantity: 1 },
       ],
       members: [member('m1', ['vocal'], ['e1', 'e2']), member('m2', ['vocal'], ['e1', 'e2'])],
-      intervalRules: [],
+      intervalRule: null,
       priorityRoles: [],
       pinnedSlots: [{ eventId: 'e1', roleId: 'vocal', slotIndex: 0, membershipId: 'm2' }],
     };
@@ -783,7 +772,7 @@ describe('solveSchedule — manual pins (keep_manual, spec 5.4)', () => {
         { eventId: 'e2', roleId: 'vocal', quantity: 1 },
       ],
       members: [member('m1', ['vocal'], ['e1', 'e2']), member('m2', ['vocal'], ['e1', 'e2'])],
-      intervalRules: [],
+      intervalRule: null,
       priorityRoles: [],
       pinnedSlots: [{ eventId: 'e1', roleId: 'vocal', slotIndex: 0, membershipId: 'm1' }],
     };
@@ -799,7 +788,7 @@ describe('solveSchedule — manual pins (keep_manual, spec 5.4)', () => {
       events: [event('e1', '2026-08-02')],
       requirements: [{ eventId: 'e1', roleId: 'vocal', quantity: 1 }],
       members: [member('m1', ['vocal'], ['e1'])],
-      intervalRules: [],
+      intervalRule: null,
       priorityRoles: [],
       pinnedSlots: [{ eventId: 'e1', roleId: 'vocal', slotIndex: 0, membershipId: null }],
     };

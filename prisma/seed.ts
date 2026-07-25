@@ -95,7 +95,6 @@ async function main() {
   await prisma.intervalRule.create({
     data: {
       organizationId: organization.id,
-      scopeKey: 'GENERAL',
       intervalCount: 1,
       countMode: IntervalCountMode.BY_EVENT,
     },

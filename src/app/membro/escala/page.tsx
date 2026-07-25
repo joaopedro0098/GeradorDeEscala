@@ -7,19 +7,21 @@ type PageProps = {
 
 export default async function MemberSchedulePage({ searchParams }: PageProps) {
   const params = await searchParams;
-  const now = new Date();
-  const year = Number(params.year ?? now.getUTCFullYear());
-  const month = Number(params.month ?? now.getUTCMonth() + 1);
-  const selectedDate = params.date ?? null;
+  const requested =
+    params.year && params.month
+      ? { year: Number(params.year), month: Number(params.month) }
+      : null;
 
-  const data = await getMemberSchedulePageData(year, month);
+  const data = await getMemberSchedulePageData(requested);
 
   return (
     <ScheduleMemberPageClient
       organizationId={data.session.organizationId}
-      initialYear={year}
-      initialMonth={month}
-      initialSelectedDate={selectedDate}
+      workingMonth={data.workingMonth}
+      viewedMonth={data.viewedMonth}
+      isHistory={data.isHistory}
+      historyMonths={data.historyMonths}
+      initialSelectedDate={params.date ?? null}
       serverOverview={data.overview}
     />
   );

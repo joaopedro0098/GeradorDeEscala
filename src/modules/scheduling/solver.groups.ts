@@ -44,7 +44,7 @@ export function resolveGroupPlacements(input: {
   events: SolverEventInput[];
   requirements: SolverRequirementInput[];
   members: SolverMemberInput[];
-  intervalRules: SolverIntervalRuleInput[];
+  intervalRule: SolverIntervalRuleInput | null;
   groups: SolverGroupInput[];
 }): GroupPlacementResult {
   const pins: SolverAssignedSlot[] = [];
@@ -63,7 +63,7 @@ export function resolveGroupPlacements(input: {
     requirementsByEvent.set(requirement.eventId, list);
   }
 
-  const violatesInterval = createIntervalChecker(input.events, input.intervalRules);
+  const violatesInterval = createIntervalChecker(input.events, input.intervalRule);
   const historyByMember = new Map<string, Array<{ eventId: string; roleId: string }>>();
 
   function excludeGroup(eventId: string, group: SolverGroupInput): void {
@@ -102,7 +102,7 @@ export function resolveGroupPlacements(input: {
           const isCompetent = member.rolePreferences.some((p) => p.roleId === slot.roleId);
           if (!isCompetent) return false;
           const history = historyByMember.get(membershipId) ?? [];
-          return !violatesInterval(history, event.id, slot.roleId);
+          return !violatesInterval(history, event.id);
         },
       );
 

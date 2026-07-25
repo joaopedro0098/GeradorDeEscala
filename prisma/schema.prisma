@@ -83,6 +83,10 @@ model Organization {
   id                    String                 @id @default(cuid())
   name                  String
   logoUrl               String?
+  /// Month the whole organization is working on: schedule, availability and the
+  /// event calendar all operate on it. Null falls back to the current month.
+  workingYear           Int?
+  workingMonth          Int?
   inviteCode            String                 @unique
   planTier              PlanTier               @default(BASIC)
   subscriptionStatus    SubscriptionStatus     @default(TRIAL)
@@ -94,7 +98,7 @@ model Organization {
   events                Event[]
   dayOfWeekRequirements DayOfWeekRequirement[]
   participationConfig   ParticipationConfig?
-  intervalRules         IntervalRule[]
+  intervalRule          IntervalRule?
   priorityRoles         PriorityRole[]
   schedules             Schedule[]
   memberGroups          MemberGroup[]
@@ -133,7 +137,6 @@ model Role {
   combinationsAsRoleA   MembershipRoleCombination[] @relation("RoleCombinationRoleA")
   combinationsAsRoleB   MembershipRoleCombination[] @relation("RoleCombinationRoleB")
   dayOfWeekRequirements DayOfWeekRequirement[]
-  intervalRules         IntervalRule[]
   priorityRoles         PriorityRole[]
   scheduleSlots         ScheduleSlot[]
 
@@ -253,21 +256,15 @@ model ParticipationConfig {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 }
 
+/// Single organization-wide interval rule. Per-role rules were removed.
 model IntervalRule {
   id             String            @id @default(cuid())
-  organizationId String
-  roleId         String?
-  /// 'GENERAL' for org-wide rules, otherwise mirrors roleId for per-role rules.
-  scopeKey       String
+  organizationId String            @unique
   intervalCount  Int
   countMode      IntervalCountMode
   createdAt      DateTime          @default(now())
   updatedAt      DateTime          @updatedAt
   organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  role           Role?             @relation(fields: [roleId], references: [id], onDelete: Cascade)
-
-  @@unique([organizationId, scopeKey])
-  @@index([organizationId])
 }
 
 model PriorityRole {

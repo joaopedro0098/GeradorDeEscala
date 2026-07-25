@@ -6,8 +6,6 @@ export default async function AdminConfigurationPage() {
   const data = await getConfigurationPageData();
   if (!data) redirect('/login');
 
-  const now = new Date();
-
   return (
     <div>
       <div className="mb-6">
@@ -19,8 +17,8 @@ export default async function AdminConfigurationPage() {
 
       <ConfigurationTabs
         configuration={data.configuration}
-        initialYear={now.getUTCFullYear()}
-        initialMonth={now.getUTCMonth() + 1}
+        workingMonth={data.workingMonth}
+        earliestMonth={data.earliestMonth}
       />
     </div>
   );

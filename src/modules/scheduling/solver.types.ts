@@ -34,9 +34,8 @@ export type SolverMemberInput = {
   compatibleRolePairs?: SolverRoleCombinationInput[];
 };
 
+/** Organization-wide interval rule; per-role rules no longer exist. */
 export type SolverIntervalRuleInput = {
-  /** null represents the organization-wide (GENERAL) rule. */
-  roleId: string | null;
   intervalCount: number;
   countMode: 'BY_EVENT' | 'BY_DAY_OF_WEEK';
 };
@@ -77,7 +76,7 @@ export type SolverInput = {
   events: SolverEventInput[];
   requirements: SolverRequirementInput[];
   members: SolverMemberInput[];
-  intervalRules: SolverIntervalRuleInput[];
+  intervalRule: SolverIntervalRuleInput | null;
   priorityRoles: SolverPriorityRoleInput[];
   priorMonthAssignments?: SolverPriorMonthAssignmentInput[];
   groups?: SolverGroupInput[];

@@ -51,10 +51,6 @@ export function validateIntervalCount(intervalCount: number): boolean {
   return Number.isInteger(intervalCount) && intervalCount >= 0;
 }
 
-export function buildIntervalScopeKey(roleId?: string | null): string {
-  return roleId ?? 'GENERAL';
-}
-
 export function reorderPriorityRoleIds(
   currentRoleIds: string[],
   roleId: string,

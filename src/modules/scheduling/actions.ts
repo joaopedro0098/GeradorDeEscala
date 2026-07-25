@@ -15,9 +15,9 @@ import {
   deleteRole,
   getScheduleConfiguration,
   movePriorityRole,
-  removeIntervalRule,
   removePriorityRole,
   setParticipationMinimum,
+  setPriorityRoleOrder,
   toggleEventDate,
   upsertDayRequirement,
   upsertIntervalRule,
@@ -35,13 +35,37 @@ import {
   undoLastGeneration,
 } from '@/modules/scheduling/schedule.service';
 import type { SolverStatus } from '@/modules/scheduling/solver.types';
+import {
+  ensureWorkingMonth,
+  getWorkingMonth,
+  setWorkingMonth,
+} from '@/modules/scheduling/working-month.service';
+import {
+  currentYearMonth,
+  isSameYearMonth,
+  isValidYearMonth,
+  isWithinHistoryRange,
+  listHistoryMonths,
+  type YearMonth,
+} from '@/modules/scheduling/working-month.logic';
 
 const CONFIG_PATH = '/admin/configuracoes';
 const SCHEDULE_ADMIN_PATH = '/admin/escala';
 const SCHEDULE_MEMBER_PATH = '/membro/escala';
+const AVAILABILITY_ADMIN_PATH = '/admin/disponibilidade';
+const AVAILABILITY_MEMBER_PATH = '/membro/disponibilidade';
 
 function revalidateConfiguration() {
   revalidatePath(CONFIG_PATH);
+}
+
+/** The working month drives every screen, so all of them go stale together. */
+function revalidateWorkingMonth() {
+  revalidatePath(CONFIG_PATH);
+  revalidatePath(SCHEDULE_ADMIN_PATH);
+  revalidatePath(SCHEDULE_MEMBER_PATH);
+  revalidatePath(AVAILABILITY_ADMIN_PATH);
+  revalidatePath(AVAILABILITY_MEMBER_PATH);
 }
 
 function revalidateSchedule(year: number, month: number) {
@@ -74,15 +98,40 @@ export async function getConfigurationPageData() {
   if (!canManageMembers(session)) {
     redirect('/admin/escala');
   }
+  const workingMonth = await ensureWorkingMonth(session.organizationId);
   const configuration = await getScheduleConfiguration(session.organizationId);
-  return { session, configuration };
+  return {
+    session,
+    configuration,
+    workingMonth,
+    earliestMonth: currentYearMonth(new Date()),
+  };
+}
+
+export async function setWorkingMonthAction(
+  year: number,
+  month: number,
+): Promise<{ error?: string }> {
+  try {
+    const session = await requireAdminSession();
+    await setWorkingMonth(session.organizationId, { year, month });
+    revalidateWorkingMonth();
+    return {};
+  } catch (error) {
+    return mapError(error);
+  }
 }
 
 export async function toggleEventDateAction(dateKey: string): Promise<void> {
   try {
     const session = await requireAdminSession();
+    const workingMonth = await getWorkingMonth(session.organizationId);
+    const monthPrefix = `${workingMonth.year}-${String(workingMonth.month).padStart(2, '0')}-`;
+    if (!dateKey.startsWith(monthPrefix)) {
+      throw new ConfigurationServiceError('Só é possível marcar dias do mês de trabalho.');
+    }
     await toggleEventDate(session.organizationId, dateKey);
-    revalidateConfiguration();
+    revalidateWorkingMonth();
   } catch (error) {
     console.error(mapError(error).error);
   }
@@ -176,43 +225,6 @@ export async function saveGeneralIntervalRuleAction(
   }
 }
 
-export async function saveRoleIntervalRuleAction(formData: FormData): Promise<void> {
-  try {
-    const session = await requireAdminSession();
-    const parsed = z
-      .object({
-        roleId: z.string().min(1),
-        intervalCount: z.coerce.number().int().min(0),
-        countMode: z.enum(['BY_EVENT', 'BY_DAY_OF_WEEK']),
-      })
-      .parse({
-        roleId: formData.get('roleId'),
-        intervalCount: formData.get('intervalCount'),
-        countMode: formData.get('countMode'),
-      });
-
-    await upsertIntervalRule({
-      organizationId: session.organizationId,
-      roleId: parsed.roleId,
-      intervalCount: parsed.intervalCount,
-      countMode: parsed.countMode as IntervalCountMode,
-    });
-    revalidateConfiguration();
-  } catch (error) {
-    console.error(mapError(error).error);
-  }
-}
-
-export async function removeRoleIntervalRuleAction(roleId: string): Promise<void> {
-  try {
-    const session = await requireAdminSession();
-    await removeIntervalRule({ organizationId: session.organizationId, roleId });
-    revalidateConfiguration();
-  } catch (error) {
-    console.error(mapError(error).error);
-  }
-}
-
 export async function addPriorityRoleAction(roleId: string): Promise<void> {
   try {
     const session = await requireAdminSession();
@@ -250,6 +262,18 @@ export async function movePriorityRoleAction(
   }
 }
 
+export async function setPriorityRoleOrderAction(orderedRoleIds: string[]): Promise<{ error?: string }> {
+  try {
+    const session = await requireAdminSession();
+    const ids = z.array(z.string().min(1)).min(1).parse(orderedRoleIds);
+    await setPriorityRoleOrder(session.organizationId, ids);
+    revalidateConfiguration();
+    return {};
+  } catch (error) {
+    return mapError(error);
+  }
+}
+
 export async function saveParticipationMinimumAction(
   _prev: { error?: string; success?: string },
   formData: FormData,
@@ -273,11 +297,31 @@ export async function saveParticipationMinimumAction(
   }
 }
 
-export async function getAdminSchedulePageData(year: number, month: number) {
+/**
+ * The working month is the only editable period; anything older is opened as a
+ * read-only history view, and anything else falls back to the working month.
+ */
+function resolveViewedMonth(
+  workingMonth: YearMonth,
+  requested: YearMonth | null,
+): { viewedMonth: YearMonth; isHistory: boolean } {
+  if (!requested || !isValidYearMonth(requested) || isSameYearMonth(requested, workingMonth)) {
+    return { viewedMonth: workingMonth, isHistory: false };
+  }
+  if (isWithinHistoryRange(requested, workingMonth)) {
+    return { viewedMonth: requested, isHistory: true };
+  }
+  return { viewedMonth: workingMonth, isHistory: false };
+}
+
+export async function getAdminSchedulePageData(requested: YearMonth | null) {
   const session = await requireSession({ loginMode: 'admin' });
   if (!canManageMembers(session)) {
     redirect('/admin/escala');
   }
+
+  const workingMonth = await ensureWorkingMonth(session.organizationId);
+  const { viewedMonth, isHistory } = resolveViewedMonth(workingMonth, requested);
 
   const organization = await prisma.organization.findUniqueOrThrow({
     where: { id: session.organizationId },
@@ -287,9 +331,13 @@ export async function getAdminSchedulePageData(year: number, month: number) {
   const subscriptionCheck = canGenerateScheduleForOrganization(organization);
 
   const [overview, shortagePreview, assignmentCandidates] = await Promise.all([
-    getScheduleOverviewForAdmin(session.organizationId, year, month),
-    getPreGenerationShortagePreview(session.organizationId, year, month),
-    getAssignmentCandidatesForAdmin(session.organizationId, year, month),
+    getScheduleOverviewForAdmin(session.organizationId, viewedMonth.year, viewedMonth.month),
+    isHistory
+      ? Promise.resolve([])
+      : getPreGenerationShortagePreview(session.organizationId, viewedMonth.year, viewedMonth.month),
+    isHistory
+      ? Promise.resolve([])
+      : getAssignmentCandidatesForAdmin(session.organizationId, viewedMonth.year, viewedMonth.month),
   ]);
 
   return {
@@ -297,21 +345,34 @@ export async function getAdminSchedulePageData(year: number, month: number) {
     overview,
     shortagePreview,
     assignmentCandidates,
-    year,
-    month,
+    workingMonth,
+    viewedMonth,
+    isHistory,
+    historyMonths: listHistoryMonths(workingMonth),
     generateSubscriptionNotice: subscriptionCheck.allowed ? null : subscriptionCheck.reason ?? null,
   };
 }
 
-export async function getMemberSchedulePageData(year: number, month: number) {
+export async function getMemberSchedulePageData(requested: YearMonth | null) {
   const session = await requireSession({ loginMode: 'user' });
-  const overview = await getScheduleOverviewForMember(session.organizationId, year, month);
-  return { session, overview, year, month };
+  const workingMonth = await ensureWorkingMonth(session.organizationId);
+  const { viewedMonth, isHistory } = resolveViewedMonth(workingMonth, requested);
+  const overview = await getScheduleOverviewForMember(
+    session.organizationId,
+    viewedMonth.year,
+    viewedMonth.month,
+  );
+  return {
+    session,
+    overview,
+    workingMonth,
+    viewedMonth,
+    isHistory,
+    historyMonths: listHistoryMonths(workingMonth),
+  };
 }
 
 export async function generateScheduleAction(
-  year: number,
-  month: number,
   keepManual = false,
 ): Promise<{ error?: string; success?: string; status?: SolverStatus; blankCount?: number }> {
   try {
@@ -325,6 +386,7 @@ export async function generateScheduleAction(
       return { error: subscriptionCheck.reason };
     }
 
+    const { year, month } = await getWorkingMonth(session.organizationId);
     const result = await generateSchedule(session.organizationId, year, month, { keepManual });
     revalidateSchedule(year, month);
     return { success: 'Escala gerada.', status: result.status, blankCount: result.blankCount };
@@ -333,12 +395,10 @@ export async function generateScheduleAction(
   }
 }
 
-export async function publishScheduleAction(
-  year: number,
-  month: number,
-): Promise<{ error?: string; success?: string }> {
+export async function publishScheduleAction(): Promise<{ error?: string; success?: string }> {
   try {
     const session = await requireAdminSession();
+    const { year, month } = await getWorkingMonth(session.organizationId);
     await publishSchedule(session.organizationId, year, month);
     revalidateSchedule(year, month);
     return { success: 'Escala publicada.' };
@@ -349,12 +409,11 @@ export async function publishScheduleAction(
 
 export async function setScheduleSlotMinisterAction(
   scheduleSlotId: string,
-  year: number,
-  month: number,
 ): Promise<{ error?: string }> {
   try {
     const session = await requireAdminSession();
     await setScheduleSlotMinister(session.organizationId, scheduleSlotId);
+    const { year, month } = await getWorkingMonth(session.organizationId);
     revalidateSchedule(year, month);
     return {};
   } catch (error) {
@@ -365,12 +424,11 @@ export async function setScheduleSlotMinisterAction(
 export async function setScheduleSlotAssignmentAction(
   scheduleSlotId: string,
   membershipId: string | null,
-  year: number,
-  month: number,
 ): Promise<{ error?: string }> {
   try {
     const session = await requireAdminSession();
     await setScheduleSlotAssignment(session.organizationId, scheduleSlotId, membershipId);
+    const { year, month } = await getWorkingMonth(session.organizationId);
     revalidateSchedule(year, month);
     return {};
   } catch (error) {
@@ -378,12 +436,10 @@ export async function setScheduleSlotAssignmentAction(
   }
 }
 
-export async function undoLastGenerationAction(
-  year: number,
-  month: number,
-): Promise<{ error?: string; success?: string }> {
+export async function undoLastGenerationAction(): Promise<{ error?: string; success?: string }> {
   try {
     const session = await requireAdminSession();
+    const { year, month } = await getWorkingMonth(session.organizationId);
     await undoLastGeneration(session.organizationId, year, month);
     revalidateSchedule(year, month);
     return { success: 'Última geração desfeita.' };

@@ -12,6 +12,10 @@ import {
   listOrganizationEventsForMonth,
   toggleMemberAvailability,
 } from '@/modules/availability/availability.service';
+import {
+  ensureWorkingMonth,
+  getWorkingMonth,
+} from '@/modules/scheduling/working-month.service';
 
 const MEMBER_PATH = '/membro/disponibilidade';
 const ADMIN_PATH = '/admin/disponibilidade';
@@ -23,10 +27,15 @@ function revalidateAvailability(year: number, month: number) {
   revalidatePath(`${ADMIN_PATH}?year=${year}&month=${month}`);
 }
 
-export async function getMemberAvailabilityPageData(year: number, month: number) {
+export async function getMemberAvailabilityPageData() {
   const session = await requireSession({ loginMode: 'user' });
+  const workingMonth = await ensureWorkingMonth(session.organizationId);
   const [events, minimumDays] = await Promise.all([
-    listOrganizationEventsForMonth(session.organizationId, year, month),
+    listOrganizationEventsForMonth(
+      session.organizationId,
+      workingMonth.year,
+      workingMonth.month,
+    ),
     getMinimumParticipationDays(session.organizationId),
   ]);
 
@@ -35,31 +44,30 @@ export async function getMemberAvailabilityPageData(year: number, month: number)
     events.map((event) => event.id),
   );
 
-  const selectedDays = markedEventIds.length;
-
   return {
     session,
     events,
     markedEventIds,
     minimumDays,
-    selectedDays,
-    year,
-    month,
+    selectedDays: markedEventIds.length,
+    workingMonth,
   };
 }
 
-export async function toggleAvailabilityAction(eventId: string, year: number, month: number) {
+export async function toggleAvailabilityAction(eventId: string) {
   const session = await requireSession({ loginMode: 'user' });
   await toggleMemberAvailability({
     membershipId: session.membershipId,
     organizationId: session.organizationId,
     eventId,
   });
+  const { year, month } = await getWorkingMonth(session.organizationId);
   revalidateAvailability(year, month);
 }
 
-export async function getSubmitAvailabilityPreviewAction(year: number, month: number) {
+export async function getSubmitAvailabilityPreviewAction() {
   const session = await requireSession({ loginMode: 'user' });
+  const { year, month } = await getWorkingMonth(session.organizationId);
   return getMemberAvailabilitySubmissionPreview({
     membershipId: session.membershipId,
     organizationId: session.organizationId,
@@ -68,8 +76,9 @@ export async function getSubmitAvailabilityPreviewAction(year: number, month: nu
   });
 }
 
-export async function submitAvailabilityAction(year: number, month: number) {
+export async function submitAvailabilityAction() {
   const session = await requireSession({ loginMode: 'user' });
+  const { year, month } = await getWorkingMonth(session.organizationId);
   const preview = await getMemberAvailabilitySubmissionPreview({
     membershipId: session.membershipId,
     organizationId: session.organizationId,
@@ -89,21 +98,25 @@ export async function submitAvailabilityAction(year: number, month: number) {
   };
 }
 
-export async function getAdminParticipationPageData(year: number, month: number) {
+export async function getAdminParticipationPageData() {
   const session = await requireSession({ loginMode: 'admin' });
   if (!canManageMembers(session)) {
     return null;
   }
 
-  const summaries = await listMemberParticipationSummaries(session.organizationId, year, month);
+  const workingMonth = await ensureWorkingMonth(session.organizationId);
+  const summaries = await listMemberParticipationSummaries(
+    session.organizationId,
+    workingMonth.year,
+    workingMonth.month,
+  );
   const minimumDays = await getMinimumParticipationDays(session.organizationId);
 
   return {
     session,
     summaries,
     minimumDays,
-    year,
-    month,
+    workingMonth,
   };
 }
 

@@ -43,9 +43,6 @@ export type DayRequirementSummary = {
 };
 
 export type IntervalRuleSummary = {
-  scopeKey: string;
-  roleId: string | null;
-  roleName: string | null;
   intervalCount: number;
   countMode: 'BY_EVENT' | 'BY_DAY_OF_WEEK';
 };
@@ -61,7 +58,6 @@ export type ScheduleConfigurationSnapshot = {
   events: EventDateSummary[];
   dayRequirements: DayRequirementSummary[];
   generalIntervalRule: IntervalRuleSummary | null;
-  roleIntervalRules: IntervalRuleSummary[];
   priorityRoles: PriorityRoleSummary[];
   participationMinimumDays: number | null;
 };

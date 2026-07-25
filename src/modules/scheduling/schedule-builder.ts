@@ -113,7 +113,7 @@ export type BuildSolverInputParams = {
   events: SolverEventInput[];
   dayRequirements: Array<{ dayOfWeek: DayOfWeek; roleId: string; quantity: number }>;
   members: SolverMemberInput[];
-  intervalRules: SolverIntervalRuleInput[];
+  intervalRule: SolverIntervalRuleInput | null;
   priorityRoles: SolverPriorityRoleInput[];
   priorMonthSlots: Array<{ membershipId: string | null; roleId: string }>;
   groups: Array<{ id: string; mode: SolverGroupMode; membershipIds: string[] }>;
@@ -131,7 +131,7 @@ export function buildSolverInput(params: BuildSolverInputParams): SolverInput {
     events: params.events,
     requirements: expandRequirementsForEvents(params.events, params.dayRequirements),
     members: params.members,
-    intervalRules: params.intervalRules,
+    intervalRule: params.intervalRule,
     priorityRoles: params.priorityRoles,
     priorMonthAssignments: buildPriorMonthAssignments(params.priorMonthSlots),
     groups: buildSolverGroups(params.groups),

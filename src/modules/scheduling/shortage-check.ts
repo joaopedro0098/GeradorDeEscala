@@ -36,7 +36,7 @@ export function computeShortage(input: {
   requirements: SolverRequirementInput[];
   members: SolverMemberInput[];
   events?: SolverEventInput[];
-  intervalRules?: SolverIntervalRuleInput[];
+  intervalRule?: SolverIntervalRuleInput | null;
   groups?: SolverGroupInput[];
   pinnedSlots?: SolverPinnedSlotInput[];
 }): ShortageEntry[] {
@@ -52,7 +52,7 @@ export function computeShortage(input: {
       events: sortedEvents,
       requirements: input.requirements,
       members: input.members,
-      intervalRules: input.intervalRules ?? [],
+      intervalRule: input.intervalRule ?? null,
       groups,
     });
     pins = placement.pins;

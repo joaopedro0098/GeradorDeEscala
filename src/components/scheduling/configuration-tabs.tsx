@@ -5,6 +5,7 @@ import { EventCalendar } from '@/components/scheduling/event-calendar';
 import { RolesAndFormationEditor } from '@/components/scheduling/roles-formation-editor';
 import { ScheduleRulesEditor } from '@/components/scheduling/schedule-rules-editor';
 import type { ScheduleConfigurationSnapshot } from '@/modules/scheduling/types';
+import type { YearMonth } from '@/modules/scheduling/working-month.logic';
 
 const TABS = [
   { id: 'calendar', label: 'Calendário' },
@@ -16,12 +17,12 @@ type TabId = (typeof TABS)[number]['id'];
 
 export function ConfigurationTabs({
   configuration,
-  initialYear,
-  initialMonth,
+  workingMonth,
+  earliestMonth,
 }: {
   configuration: ScheduleConfigurationSnapshot;
-  initialYear: number;
-  initialMonth: number;
+  workingMonth: YearMonth;
+  earliestMonth: YearMonth;
 }) {
   const [activeTab, setActiveTab] = useState<TabId>('calendar');
 
@@ -47,8 +48,9 @@ export function ConfigurationTabs({
       <div className="mt-6">
         {activeTab === 'calendar' ? (
           <EventCalendar
-            initialYear={initialYear}
-            initialMonth={initialMonth}
+            key={`${workingMonth.year}-${workingMonth.month}`}
+            workingMonth={workingMonth}
+            earliestMonth={earliestMonth}
             eventDates={configuration.events.map((event) => event.date)}
           />
         ) : null}
@@ -62,9 +64,7 @@ export function ConfigurationTabs({
 
         {activeTab === 'rules' ? (
           <ScheduleRulesEditor
-            roles={configuration.roles}
             generalIntervalRule={configuration.generalIntervalRule}
-            roleIntervalRules={configuration.roleIntervalRules}
             priorityRoles={configuration.priorityRoles}
             participationMinimumDays={configuration.participationMinimumDays}
           />

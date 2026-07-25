@@ -91,7 +91,7 @@ export function solveSchedule(input: SolverInput): SolverResult {
     events,
     requirements: input.requirements,
     members: input.members,
-    intervalRules: input.intervalRules,
+    intervalRule: input.intervalRule,
     groups: input.groups ?? [],
   });
 
@@ -174,7 +174,7 @@ export function solveSchedule(input: SolverInput): SolverResult {
     priorMonthCounts.set(scopedKey(entry.membershipId, entry.roleId), entry.count);
   }
 
-  const checkIntervalViolation = createIntervalChecker(events, input.intervalRules);
+  const checkIntervalViolation = createIntervalChecker(events, input.intervalRule);
 
   const periodCounts = new Map<string, number>();
   const assignmentsByMember = new Map<string, Array<{ eventId: string; roleId: string }>>();
@@ -221,7 +221,7 @@ export function solveSchedule(input: SolverInput): SolverResult {
 
   function violatesInterval(membershipId: string, variable: Variable): boolean {
     const history = assignmentsByMember.get(membershipId) ?? [];
-    return checkIntervalViolation(history, variable.eventId, variable.roleId);
+    return checkIntervalViolation(history, variable.eventId);
   }
 
   /** True when a fellow FLEXIBLE-group member is already assigned any role at this event (4.3 tie-break). */
