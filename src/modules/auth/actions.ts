@@ -204,6 +204,13 @@ export async function joinOrganizationAction(
   formData: FormData,
 ): Promise<ActionState> {
   try {
+    const session = await getSessionFromCookies();
+    if (session?.loginMode === 'admin') {
+      return {
+        error: 'Administradores não podem solicitar entrada em outra organização. Use a área de membro.',
+      };
+    }
+
     const userId = await resolveActingUserId();
     if (!userId) {
       return { error: 'Sessão expirada. Faça login novamente.' };
@@ -417,11 +424,22 @@ export async function getOrganizationsPageData() {
   if (!userId) return null;
 
   const memberships = await listMembershipsForUser(userId);
+  const canEditProfile = session ? canEditOrganizationProfile(session) : false;
+
+  let organizationProfile: { name: string; logoUrl: string | null } | null = null;
+  if (session && canEditProfile) {
+    organizationProfile = await prisma.organization.findUnique({
+      where: { id: session.organizationId },
+      select: { name: true, logoUrl: true },
+    });
+  }
 
   return {
     session,
     pending,
     memberships,
+    canEditProfile,
+    organizationProfile,
   };
 }
 
@@ -500,7 +518,8 @@ export async function updateOrganizationProfileAction(
 
     revalidatePath('/admin');
     revalidatePath('/membro');
-    revalidatePath('/admin/conta');
+    revalidatePath('/admin/organizacoes');
+    revalidatePath('/membro/organizacoes');
     return { success: 'Perfil da organização atualizado.' };
   } catch (error) {
     return handleActionError(error);
@@ -519,11 +538,10 @@ export async function getAccountPageData() {
     select: { email: true, name: true },
   });
 
-  const canEditProfile = session ? canEditOrganizationProfile(session) : false;
   const showPlans = session ? canViewPlans(session) : false;
 
-  if (!session || (!canEditProfile && !showPlans)) {
-    return { user, session, organization: null, canEditProfile: false };
+  if (!session || !showPlans) {
+    return { user, session, organization: null };
   }
 
   const organization = await prisma.organization.findUnique({
@@ -537,7 +555,7 @@ export async function getAccountPageData() {
     },
   });
 
-  return { user, session, organization, canEditProfile };
+  return { user, session, organization };
 }
 
 async function assertDeveloperSession() {

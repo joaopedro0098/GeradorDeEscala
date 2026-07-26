@@ -54,7 +54,6 @@ import {
 const CONFIG_PATH = '/admin/configuracoes';
 const SCHEDULE_ADMIN_PATH = '/admin/escala';
 const SCHEDULE_MEMBER_PATH = '/membro/escala';
-const AVAILABILITY_ADMIN_PATH = '/admin/disponibilidade';
 const AVAILABILITY_MEMBER_PATH = '/membro/disponibilidade';
 
 function revalidateConfiguration() {
@@ -66,7 +65,6 @@ function revalidateWorkingMonth() {
   revalidatePath(CONFIG_PATH);
   revalidatePath(SCHEDULE_ADMIN_PATH);
   revalidatePath(SCHEDULE_MEMBER_PATH);
-  revalidatePath(AVAILABILITY_ADMIN_PATH);
   revalidatePath(AVAILABILITY_MEMBER_PATH);
 }
 
@@ -407,7 +405,6 @@ export async function setAvailabilityLockedAction(
     await setAvailabilityLocked(session.organizationId, year, month, availabilityLocked);
     revalidateSchedule(year, month);
     revalidatePath('/membro/disponibilidade');
-    revalidatePath('/admin/disponibilidade');
     return { success: 'Salvo com sucesso' };
   } catch (error) {
     return mapError(error);

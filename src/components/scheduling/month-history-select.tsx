@@ -35,8 +35,8 @@ export function MonthHistorySelect({
   }
 
   return (
-    <label className="flex flex-col gap-1 text-xs font-medium text-zinc-500">
-      Mês
+    <label className="block">
+      <span className="sr-only">Mês</span>
       <select
         value={value}
         disabled={disabled}

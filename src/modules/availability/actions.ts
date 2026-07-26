@@ -2,13 +2,10 @@
 
 import { revalidatePath } from 'next/cache';
 import { requireSession } from '@/lib/auth.server';
-import { canManageMembers } from '@/modules/auth/permissions';
 import {
-  countMemberMarkedDaysInMonth,
   getMemberAvailabilitySubmissionPreview,
   getMinimumParticipationDays,
   listMemberAvailabilityEventIds,
-  listMemberParticipationSummaries,
   listOrganizationEventsForMonth,
   toggleMemberAvailability,
 } from '@/modules/availability/availability.service';
@@ -19,13 +16,10 @@ import {
 import { assertAvailabilityNotLocked, getAvailabilityLocked } from '@/modules/scheduling/schedule.service';
 
 const MEMBER_PATH = '/membro/disponibilidade';
-const ADMIN_PATH = '/admin/disponibilidade';
 
 function revalidateAvailability(year: number, month: number) {
   revalidatePath(MEMBER_PATH);
   revalidatePath(`${MEMBER_PATH}?year=${year}&month=${month}`);
-  revalidatePath(ADMIN_PATH);
-  revalidatePath(`${ADMIN_PATH}?year=${year}&month=${month}`);
 }
 
 export async function getMemberAvailabilityPageData() {
@@ -102,35 +96,4 @@ export async function submitAvailabilityAction() {
         : 'Disponibilidade enviada com sucesso.',
     preview,
   };
-}
-
-export async function getAdminParticipationPageData() {
-  const session = await requireSession({ loginMode: 'admin' });
-  if (!canManageMembers(session)) {
-    return null;
-  }
-
-  const workingMonth = await ensureWorkingMonth(session.organizationId);
-  const summaries = await listMemberParticipationSummaries(
-    session.organizationId,
-    workingMonth.year,
-    workingMonth.month,
-  );
-  const minimumDays = await getMinimumParticipationDays(session.organizationId);
-
-  return {
-    session,
-    summaries,
-    minimumDays,
-    workingMonth,
-  };
-}
-
-export async function getMemberMarkedDaysForMonth(
-  membershipId: string,
-  organizationId: string,
-  year: number,
-  month: number,
-) {
-  return countMemberMarkedDaysInMonth(membershipId, organizationId, year, month);
 }

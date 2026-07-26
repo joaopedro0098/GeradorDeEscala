@@ -35,12 +35,14 @@ export function Field({
   type = 'text',
   required = true,
   defaultValue,
+  autoComplete,
 }: {
   label: string;
   name: string;
   type?: string;
   required?: boolean;
   defaultValue?: string;
+  autoComplete?: string;
 }) {
   return (
     <label className="block text-sm font-medium text-foreground">
@@ -51,6 +53,7 @@ export function Field({
         type={type}
         required={required}
         defaultValue={defaultValue}
+        autoComplete={autoComplete}
       />
     </label>
   );

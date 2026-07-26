@@ -14,8 +14,8 @@ export function LoginForm() {
       subtitle="Acesse com seu e-mail e senha. A organização e o papel são escolhidos depois, dentro do app."
     >
       <form action={formAction} className="space-y-4">
-        <Field label="E-mail" name="email" type="email" />
-        <Field label="Senha" name="password" type="password" />
+        <Field label="E-mail" name="email" type="email" autoComplete="username" />
+        <Field label="Senha" name="password" type="password" autoComplete="current-password" />
 
         {state.error ? <Alert message={state.error} tone="error" /> : null}
 

@@ -10,11 +10,9 @@ import {
   setAvailabilityLockedAction,
   setScheduleSlotAssignmentAction,
   setScheduleSlotMinisterAction,
-  undoLastGenerationAction,
 } from '@/modules/scheduling/actions';
 import { buildScheduleMatrix } from '@/modules/scheduling/schedule.logic';
 import {
-  GENERATION_STATUS_LABELS,
   type ScheduleAssignmentCandidate,
   type ScheduleOverview,
   type ScheduleSlotView,
@@ -299,19 +297,6 @@ export function ScheduleAdminView({
     });
   }
 
-  function handleUndo() {
-    setError(null);
-    startTransition(async () => {
-      const result = await undoLastGenerationAction();
-      if (result.error) {
-        setError(result.error);
-        return;
-      }
-      showSuccessToast();
-      router.refresh();
-    });
-  }
-
   function handleToggleTableLock(nextLocked: boolean) {
     if (readOnly || isHistory) return;
     setError(null);
@@ -328,61 +313,34 @@ export function ScheduleAdminView({
     });
   }
 
-  function formatPublishedAt(iso: string | null | undefined): string {
-    if (!iso) return 'data desconhecida';
-    return new Intl.DateTimeFormat('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      timeZone: 'UTC',
-    }).format(new Date(iso));
-  }
-
-  return (
-    <div className="space-y-4">
-      {!isHistory ? (
-        <section className="rounded-2xl border border-zinc-200 bg-white p-6">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div className="min-w-0 flex-1">
-              <h2 className="text-lg font-semibold text-zinc-900">Trancar tabela</h2>
-              <p className="mt-1 text-sm text-zinc-600">
-                Ao trancar, você fecha o prazo de inserção de informações na tabela e os membros só
-                poderam visualizar
-              </p>
-            </div>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={tableLocked}
-              disabled={isPending || readOnly}
-              onClick={() => handleToggleTableLock(!tableLocked)}
-              className={`relative h-7 w-12 shrink-0 rounded-full transition-colors disabled:opacity-60 ${
-                tableLocked ? 'bg-zinc-900' : 'bg-zinc-300'
-              }`}
-            >
-              <span
-                className={`absolute top-0.5 left-0.5 h-6 w-6 rounded-full bg-white shadow transition-transform ${
-                  tableLocked ? 'translate-x-5' : 'translate-x-0'
-                }`}
-              />
-              <span className="sr-only">{tableLocked ? 'Tabela trancada' : 'Tabela destrancada'}</span>
-            </button>
-          </div>
-        </section>
-      ) : null}
-
-      <section className="rounded-2xl border border-zinc-200 bg-white p-6">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-semibold text-zinc-900">
-              Escala de <span className="capitalize">{formatYearMonth(viewedMonth)}</span>
-            </h2>
-            <p className="mt-1 text-sm text-zinc-600">
-              {isHistory
-                ? 'Mês encerrado, aberto apenas para consulta.'
-                : 'O mês vem de Configurações › Calendário. Gerar cria ou sobrescreve um rascunho; publique quando estiver pronto para os membros verem.'}
-            </p>
-          </div>
+  function renderScheduleToolbar() {
+    return (
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-200 px-3 py-3">
+        <div className="flex flex-wrap items-center gap-2">
+          {!isHistory ? (
+            <>
+              <button
+                type="button"
+                disabled={isPending || readOnly}
+                onClick={handleGenerateClick}
+                className="rounded-lg border border-zinc-300 px-3 py-2 text-sm text-zinc-700 transition-colors hover:border-[var(--btn-primary-bg)] hover:bg-[var(--btn-primary-bg)] hover:text-white disabled:opacity-60"
+              >
+                Gerar
+              </button>
+              {overview?.status === 'DRAFT' ? (
+                <button
+                  type="button"
+                  disabled={isPending || readOnly}
+                  onClick={handlePublish}
+                  className="rounded-lg border border-zinc-300 px-3 py-2 text-sm text-zinc-700 transition-colors hover:border-[var(--btn-primary-bg)] hover:bg-[var(--btn-primary-bg)] hover:text-white disabled:opacity-60"
+                >
+                  Publicar
+                </button>
+              ) : null}
+            </>
+          ) : null}
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
           <MonthHistorySelect
             basePath="/admin/escala"
             workingMonth={workingMonth}
@@ -391,76 +349,49 @@ export function ScheduleAdminView({
             historyMonths={historyMonths}
             disabled={isOffline}
           />
-        </div>
-
-        {isHistory ? (
-          <p className="mt-4 rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-700">
-            Somente leitura. Para editar, volte ao mês de trabalho (
-            <span className="capitalize">{formatYearMonth(workingMonth)}</span>).
-          </p>
-        ) : null}
-
-        {overview ? (
-          <div className="mt-4 flex flex-wrap items-center gap-2 text-sm">
-            <span
-              className={`rounded-full border px-3 py-1 ${
-                overview.status === 'PUBLISHED'
-                  ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
-                  : 'border-zinc-300 bg-zinc-100 text-zinc-700'
-              }`}
-            >
-              {overview.status === 'PUBLISHED' ? 'Publicada' : 'Rascunho'}
-            </span>
-            {overview.generationStatus ? (
-              <span className="text-zinc-600">{GENERATION_STATUS_LABELS[overview.generationStatus]}</span>
-            ) : null}
-            {overview.status === 'PUBLISHED' && overview.hasPublishedGaps ? (
-              <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-amber-900">
-                Publicada com vagas em aberto
+          {!isHistory ? (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-zinc-600">
+                {tableLocked ? 'Tabela trancada' : 'Trancar tabela'}
               </span>
-            ) : null}
-          </div>
-        ) : null}
-
-        {overview?.hasPendingDraft ? (
-          <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-            Rascunho gerado pelo algoritmo. Membros ainda veem a escala publicada em{' '}
-            {formatPublishedAt(overview.memberVisiblePublishedAt)}. Publique para substituir.
-          </p>
-        ) : null}
-
-        {error ? <p className="mt-4 text-sm text-red-700">{error}</p> : null}
-
-        <div className="mt-5 flex flex-col items-start gap-2 sm:flex-row sm:flex-wrap">
-          <button
-            type="button"
-            disabled={isPending || readOnly}
-            onClick={handleGenerateClick}
-            className="rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-60"
-          >
-            {overview ? 'Regenerar escala' : 'Gerar escala'}
-          </button>
-          {overview && overview.status === 'DRAFT' ? (
-            <button
-              type="button"
-              disabled={isPending || readOnly}
-              onClick={handlePublish}
-              className="rounded-lg border border-zinc-900 px-4 py-2.5 text-sm font-medium text-zinc-900 hover:bg-zinc-100 disabled:opacity-60"
-            >
-              Publicar escala
-            </button>
-          ) : null}
-          {overview?.hasPreviousVersion ? (
-            <button
-              type="button"
-              disabled={isPending || readOnly}
-              onClick={handleUndo}
-              className="rounded-lg border border-zinc-300 px-4 py-2.5 text-sm text-zinc-700 hover:bg-zinc-50 disabled:opacity-60"
-            >
-              Desfazer última geração
-            </button>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={tableLocked}
+                disabled={isPending || readOnly}
+                title={
+                  tableLocked
+                    ? 'Destrancar: membros poderão editar disponibilidade'
+                    : 'Trancar: membros só poderão visualizar'
+                }
+                onClick={() => handleToggleTableLock(!tableLocked)}
+                className={`relative h-6 w-10 shrink-0 rounded-full transition-colors disabled:opacity-60 ${
+                  tableLocked ? 'bg-[var(--btn-primary-bg)]' : 'bg-zinc-300'
+                }`}
+              >
+                <span
+                  className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
+                    tableLocked ? 'translate-x-4' : 'translate-x-0'
+                  }`}
+                />
+                <span className="sr-only">
+                  {tableLocked ? 'Tabela trancada' : 'Tabela destrancada'}
+                </span>
+              </button>
+            </div>
           ) : null}
         </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <section>
+        <h2 className="text-lg font-semibold text-[var(--text-primary)]">
+          Escala de <span className="capitalize">{formatYearMonth(viewedMonth)}</span>
+        </h2>
+        {error ? <p className="mt-4 text-sm text-red-700">{error}</p> : null}
       </section>
 
       <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -471,7 +402,7 @@ export function ScheduleAdminView({
             onClick={() => setViewFilter(filter.id)}
             className={`shrink-0 rounded-full px-4 py-2 text-sm ${
               viewFilter === filter.id
-                ? 'bg-zinc-900 text-white'
+                ? 'btn-solid'
                 : 'border border-zinc-300 text-zinc-700'
             }`}
           >
@@ -534,10 +465,15 @@ export function ScheduleAdminView({
       ) : null}
 
       {viewFilter === 'escala' ? (
-        overview ? (
-          <section>
-            {matrix.columns.length === 0 || matrix.rows.length === 0 ? (
-              <p className="rounded-2xl border border-zinc-200 bg-white p-6 text-sm text-zinc-600">
+        <section>
+          <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white">
+            {renderScheduleToolbar()}
+            {!overview ? (
+              <p className="p-6 text-sm text-zinc-600">
+                Nenhuma escala gerada para este mês ainda.
+              </p>
+            ) : matrix.columns.length === 0 || matrix.rows.length === 0 ? (
+              <p className="p-6 text-sm text-zinc-600">
                 Nenhuma vaga configurada para os dias de evento deste período.
               </p>
             ) : (
@@ -671,12 +607,8 @@ export function ScheduleAdminView({
                 </table>
               </div>
             )}
-          </section>
-        ) : (
-          <p className="rounded-2xl border border-zinc-200 bg-white p-6 text-sm text-zinc-600">
-            Nenhuma escala gerada para este mês ainda.
-          </p>
-        )
+          </div>
+        </section>
       ) : null}
 
       {slotPicker ? (
@@ -760,7 +692,7 @@ export function ScheduleAdminView({
               </button>
               <button
                 type="button"
-                className="flex-1 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white"
+                className="btn-solid flex-1 rounded-lg px-4 py-2 text-sm font-medium"
                 onClick={confirmReplacement}
               >
                 Sim
@@ -788,7 +720,7 @@ export function ScheduleAdminView({
               </button>
               <button
                 type="button"
-                className="flex-1 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white"
+                className="btn-solid flex-1 rounded-lg px-4 py-2 text-sm font-medium"
                 onClick={proceedAfterShortageConfirm}
               >
                 Gerar mesmo assim
@@ -816,14 +748,14 @@ export function ScheduleAdminView({
               </button>
               <button
                 type="button"
-                className="flex-1 rounded-lg border border-zinc-900 px-4 py-2 text-sm font-medium text-zinc-900"
+                className="flex-1 rounded-lg border border-[var(--btn-primary-bg)] px-4 py-2 text-sm font-medium text-[var(--btn-primary-bg)]"
                 onClick={() => runGenerate(true)}
               >
                 Manter manuais
               </button>
               <button
                 type="button"
-                className="flex-1 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white"
+                className="btn-solid flex-1 rounded-lg px-4 py-2 text-sm font-medium"
                 onClick={() => runGenerate(false)}
               >
                 Regenerar 100%

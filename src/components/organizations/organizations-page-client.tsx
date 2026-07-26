@@ -1,6 +1,7 @@
 'use client';
 
 import { CreateOrganizationForm } from '@/components/account/create-organization-form';
+import { OrganizationProfileForm } from '@/components/account/organization-profile-form';
 import { joinOrganizationAction, switchContextAction, type ActionState } from '@/modules/auth/actions';
 import { Alert, Field, PrimaryButton } from '@/components/auth/auth-ui';
 import { GlassCard } from '@/components/ui/glass-card';
@@ -16,14 +17,16 @@ function roleLabel(membership: MembershipSummary): string {
 function OrganizationList({
   memberships,
   currentMembershipId,
+  emptyHint,
 }: {
   memberships: MembershipSummary[];
   currentMembershipId?: string;
+  emptyHint: string;
 }) {
   if (memberships.length === 0) {
     return (
       <p className="rounded-xl border border-dashed border-[var(--glass-border)] bg-white/30 px-4 py-5 text-sm text-[var(--text-secondary)]">
-        Nenhuma participação ainda. Crie uma organização abaixo ou entre com um código de convite.
+        {emptyHint}
       </p>
     );
   }
@@ -118,29 +121,62 @@ function JoinOrganizationPanel() {
 export function OrganizationsPageClient({
   session,
   memberships,
+  canEditProfile = false,
+  organizationProfile = null,
+  area = 'admin',
 }: {
   session: SessionPayload | null;
   memberships: MembershipSummary[];
+  canEditProfile?: boolean;
+  organizationProfile?: { name: string; logoUrl: string | null } | null;
+  area?: 'admin' | 'member';
 }) {
   const isFirstOrganization =
     !session && !memberships.some((membership) => membership.status === 'ACTIVE');
+  const isAdminArea = area === 'admin';
 
   return (
     <div className="space-y-6">
+      {canEditProfile && organizationProfile ? (
+        <OrganizationProfileForm
+          organizationName={organizationProfile.name}
+          logoUrl={organizationProfile.logoUrl}
+        />
+      ) : null}
+
       <GlassCard className="glass-card p-6">
-        <h2 className="font-display text-lg font-semibold text-[var(--text-primary)]">
-          Suas organizações
-        </h2>
-        <p className="mt-1 text-sm text-[var(--text-secondary)]">
-          Troque de contexto no estilo perfil. Criar uma nova organização não troca automaticamente.
-        </p>
-        <div className="mt-4">
-          <OrganizationList memberships={memberships} currentMembershipId={session?.membershipId} />
+        <div>
+          <h2 className="font-display text-lg font-semibold text-[var(--text-primary)]">
+            Suas organizações
+          </h2>
+          <p className="mt-1 text-sm text-[var(--text-secondary)]">
+            Troque de contexto no estilo perfil. Criar uma nova organização não troca automaticamente.
+          </p>
         </div>
+        <div className="mt-4">
+          <OrganizationList
+            memberships={memberships}
+            currentMembershipId={session?.membershipId}
+            emptyHint={
+              isAdminArea
+                ? 'Nenhuma organização ainda. Use Criar organização para começar.'
+                : 'Nenhuma participação ainda. Crie uma organização ou entre com um código de convite.'
+            }
+          />
+        </div>
+        {isAdminArea ? (
+          <div className="mt-4 flex justify-start">
+            <CreateOrganizationForm isFirstOrganization={isFirstOrganization} />
+          </div>
+        ) : null}
       </GlassCard>
 
-      <CreateOrganizationForm isFirstOrganization={isFirstOrganization} />
-      <JoinOrganizationPanel />
+      {!isAdminArea ? (
+        <>
+          <CreateOrganizationForm isFirstOrganization={isFirstOrganization} />
+          <JoinOrganizationPanel />
+        </>
+      ) : null}
     </div>
   );
 }

@@ -52,7 +52,6 @@ function mapError(error: unknown): DevActionState {
 
 function revalidateDevPaths() {
   revalidatePath('/admin/dev/membros-teste');
-  revalidatePath('/admin/disponibilidade');
   revalidatePath('/membro/disponibilidade');
   revalidatePath('/admin/escala');
 }

@@ -10,6 +10,7 @@ import {
   CalendarRange,
   ChevronLeft,
   ChevronRight,
+  Eye,
   FlaskConical,
   LogOut,
   Settings,
@@ -38,11 +39,6 @@ function buildAdminNav(context: AppShellContext): NavItem[] {
   return [
     { href: '/admin/escala', label: 'Escala', icon: <CalendarCheck className="h-4 w-4" /> },
     { href: '/admin/configuracoes', label: 'Configurações', icon: <Settings className="h-4 w-4" /> },
-    {
-      href: '/admin/disponibilidade',
-      label: 'Disponibilidade',
-      icon: <CalendarDays className="h-4 w-4" />,
-    },
     { href: '/admin/membros', label: 'Membros', icon: <Users className="h-4 w-4" /> },
     { href: '/admin/eventos', label: 'Eventos', icon: <CalendarRange className="h-4 w-4" /> },
     { href: '/admin/organizacoes', label: 'Organizações', icon: <Building2 className="h-4 w-4" /> },
@@ -162,43 +158,63 @@ export function AppShell({
           </div>
 
           <nav
-            className={`min-h-0 flex-1 space-y-1 overflow-y-auto py-2 ${collapsed ? 'px-1.5' : 'px-2'}`}
+            className={`flex min-h-0 flex-1 flex-col py-2 ${collapsed ? 'px-1.5' : 'px-2'}`}
           >
-            {navItems.map((item) => {
-              const active = isNavActive(pathname, item.href);
+            <div className="min-h-0 flex-1 space-y-1 overflow-y-auto">
+              {navItems.map((item) => {
+                const active = isNavActive(pathname, item.href);
 
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  title={collapsed ? item.label : undefined}
-                  className={`flex items-center rounded-xl text-sm transition-colors ${
-                    collapsed ? 'justify-center px-1.5 py-2' : 'gap-3 px-2.5 py-2'
-                  } ${
-                    active
-                      ? 'bg-[var(--btn-primary-bg)] font-medium text-[var(--btn-primary-text)]'
-                      : 'text-[var(--nav-item-inactive)] hover:bg-slate-200/50'
-                  }`}
-                >
-                  <span
-                    className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${
-                      active ? 'bg-white/15 text-white' : 'bg-slate-200/40 text-[var(--text-primary)]'
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    title={collapsed ? item.label : undefined}
+                    className={`flex items-center rounded-xl text-sm transition-colors ${
+                      collapsed ? 'justify-center px-1.5 py-2' : 'gap-3 px-2.5 py-2'
+                    } ${
+                      active
+                        ? 'bg-[var(--btn-primary-bg)] font-medium text-[var(--btn-primary-text)]'
+                        : 'text-[var(--nav-item-inactive)] hover:bg-slate-200/50'
                     }`}
                   >
-                    {item.icon}
-                  </span>
-                  {!collapsed ? item.label : null}
-                </Link>
-              );
-            })}
+                    <span
+                      className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${
+                        active
+                          ? 'bg-white/15 text-white'
+                          : 'bg-slate-200/40 text-[var(--text-primary)]'
+                      }`}
+                    >
+                      {item.icon}
+                    </span>
+                    {!collapsed ? item.label : null}
+                  </Link>
+                );
+              })}
+            </div>
+
+            <button
+              type="button"
+              onClick={toggleCollapsed}
+              className={`mt-2 flex min-h-8 w-full items-center py-1 text-[var(--text-secondary)] transition hover:text-[var(--text-primary)] ${
+                collapsed ? 'justify-center' : 'justify-end pr-1'
+              }`}
+              aria-label={collapsed ? 'Expandir menu' : 'Recolher menu'}
+            >
+              {collapsed ? (
+                <ChevronRight className="h-5 w-5" strokeWidth={2} />
+              ) : (
+                <ChevronLeft className="h-5 w-5" strokeWidth={2} />
+              )}
+            </button>
           </nav>
 
           <div
-            className={`space-y-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2 ${
-              collapsed ? 'px-1.5' : 'px-3'
+            className={`space-y-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-1 ${
+              collapsed ? 'invisible pointer-events-none px-1.5' : 'px-3'
             }`}
+            aria-hidden={collapsed}
           >
-            {!collapsed && context.userEmail ? (
+            {context.userEmail ? (
               <p
                 className="truncate px-1 text-[11px] leading-snug text-[var(--text-secondary)]"
                 title={context.userEmail}
@@ -207,56 +223,35 @@ export function AppShell({
               </p>
             ) : null}
 
-            {session?.isAdmin ? (
-              <form action={switchContextAction}>
-                <input type="hidden" name="membershipId" value={session.membershipId} />
-                <input type="hidden" name="loginMode" value={isAdmin ? 'user' : 'admin'} />
+            <div className="flex items-center justify-center gap-3">
+              <form action={logoutAction}>
                 <button
                   type="submit"
-                  title={isAdmin ? 'Ver como Usuário' : 'Ver como Admin'}
-                  className={`w-full rounded-xl bg-slate-200/40 text-xs font-medium text-[var(--text-primary)] transition hover:bg-slate-200/70 ${
-                    collapsed ? 'grid place-items-center px-1.5 py-2' : 'px-3 py-2 text-left'
-                  }`}
+                  tabIndex={collapsed ? -1 : undefined}
+                  title="Sair"
+                  className="flex items-center gap-1.5 rounded-xl px-2.5 py-2 text-xs text-[var(--text-secondary)] transition hover:bg-slate-200/60 hover:text-[var(--text-primary)]"
                 >
-                  {collapsed ? (
-                    <UserRound className="h-3.5 w-3.5" />
-                  ) : isAdmin ? (
-                    'Ver como Usuário'
-                  ) : (
-                    'Ver como Admin'
-                  )}
+                  <LogOut className="h-3.5 w-3.5 shrink-0" />
+                  Sair
                 </button>
               </form>
-            ) : null}
 
-            <form action={logoutAction}>
-              <button
-                type="submit"
-                title="Sair"
-                className={`flex w-full items-center rounded-xl border border-slate-200/80 bg-slate-100/50 text-xs text-[var(--text-secondary)] transition hover:bg-slate-200/60 hover:text-[var(--text-primary)] ${
-                  collapsed ? 'justify-center px-1.5 py-2' : 'gap-2 px-3 py-2'
-                }`}
-              >
-                <LogOut className="h-3.5 w-3.5 shrink-0" />
-                {!collapsed ? 'Sair' : null}
-              </button>
-            </form>
-
-            <button
-              type="button"
-              onClick={toggleCollapsed}
-              className={`flex w-full items-center text-xs font-medium text-[var(--text-secondary)] transition hover:text-[var(--text-primary)] ${
-                collapsed ? 'justify-center px-1.5 py-1.5' : 'justify-between px-1 py-1.5'
-              }`}
-              aria-label={collapsed ? 'Expandir menu' : 'Recolher menu'}
-            >
-              {!collapsed ? <span>Recolher menu</span> : null}
-              {collapsed ? (
-                <ChevronRight className="h-4 w-4" />
-              ) : (
-                <ChevronLeft className="h-4 w-4" />
-              )}
-            </button>
+              {session?.isAdmin ? (
+                <form action={switchContextAction}>
+                  <input type="hidden" name="membershipId" value={session.membershipId} />
+                  <input type="hidden" name="loginMode" value={isAdmin ? 'user' : 'admin'} />
+                  <button
+                    type="submit"
+                    tabIndex={collapsed ? -1 : undefined}
+                    title={isAdmin ? 'Ver como Membro' : 'Ver como Admin'}
+                    className="flex items-center gap-1.5 rounded-xl px-2.5 py-2 text-xs font-medium text-[var(--text-primary)] transition hover:bg-slate-200/60"
+                  >
+                    <Eye className="h-3.5 w-3.5 shrink-0" strokeWidth={1.75} />
+                    {isAdmin ? 'Membro' : 'Admin'}
+                  </button>
+                </form>
+              ) : null}
+            </div>
           </div>
         </aside>
 

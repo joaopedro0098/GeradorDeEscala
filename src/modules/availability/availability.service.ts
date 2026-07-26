@@ -1,8 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import {
   buildSubmitConfirmation,
-  evaluateParticipationStatus,
-  type MemberParticipationSummary,
   type SubmitConfirmation,
 } from '@/modules/availability/availability.logic';
 
@@ -135,48 +133,4 @@ export async function getMemberAvailabilitySubmissionPreview(input: {
   );
 
   return buildSubmitConfirmation(selectedDays, minimumDays);
-}
-
-export async function listMemberParticipationSummaries(
-  organizationId: string,
-  year: number,
-  month: number,
-): Promise<MemberParticipationSummary[]> {
-  const minimumDays = await getMinimumParticipationDays(organizationId);
-  const { start, end } = monthRange(year, month);
-
-  const members = await prisma.membership.findMany({
-    where: {
-      organizationId,
-      status: 'ACTIVE',
-    },
-    include: {
-      user: { select: { name: true } },
-      availabilities: {
-        where: {
-          event: {
-            date: {
-              gte: start,
-              lte: end,
-            },
-          },
-        },
-        select: { id: true },
-      },
-    },
-    orderBy: { createdAt: 'asc' },
-  });
-
-  return members.map((member) => {
-    const markedDays = member.availabilities.length;
-    const status = evaluateParticipationStatus(markedDays, minimumDays);
-
-    return {
-      membershipId: member.id,
-      memberName: member.user.name,
-      markedDays,
-      minimumDays,
-      status,
-    };
-  });
 }

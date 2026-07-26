@@ -6,5 +6,13 @@ export default async function MemberOrganizationsPage() {
   const data = await getOrganizationsPageData();
   if (!data) redirect('/login');
 
-  return <OrganizationsPageClient session={data.session} memberships={data.memberships} />;
+  return (
+    <OrganizationsPageClient
+      session={data.session}
+      memberships={data.memberships}
+      canEditProfile={data.canEditProfile}
+      organizationProfile={data.organizationProfile}
+      area="member"
+    />
+  );
 }

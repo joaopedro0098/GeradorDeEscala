@@ -2,7 +2,6 @@ import type { PlanTier, SubscriptionStatus } from '@/generated/prisma/client';
 import { PricingSection } from '@/components/marketing/pricing-section';
 import { TrialProgressBar } from '@/components/account/trial-progress-bar';
 import { GlassCard } from '@/components/ui/glass-card';
-import { getPlanDefinition } from '@/modules/organizations/plans';
 import {
   getTrialProgress,
   isOrganizationSubscriptionActive,
@@ -20,7 +19,6 @@ export function AccountPlansSection({
 }) {
   const trialProgress = getTrialProgress(organization.trialStartedAt);
   const isActive = isOrganizationSubscriptionActive(organization);
-  const currentPlan = getPlanDefinition(organization.planTier);
   const showSubscribeMessage = !isActive;
 
   return (
@@ -39,17 +37,7 @@ export function AccountPlansSection({
             (Pagamento via Stripe será habilitado em breve.)
           </p>
         </GlassCard>
-      ) : (
-        <GlassCard className="glass-card p-6">
-          <h2 className="font-display text-lg font-semibold text-[var(--text-primary)]">Plano atual</h2>
-          <p className="mt-2 text-sm text-[var(--text-secondary)]">
-            Organização <span className="font-medium text-[var(--text-primary)]">{organization.name}</span>{' '}
-            está no plano{' '}
-            <span className="font-medium text-[var(--text-primary)]">{currentPlan.name}</span> (
-            {currentPlan.priceLabel}).
-          </p>
-        </GlassCard>
-      )}
+      ) : null}
 
       <GlassCard className="glass-card p-6">
         <PricingSection
