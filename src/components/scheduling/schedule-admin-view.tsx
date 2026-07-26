@@ -38,6 +38,14 @@ function dayNumber(dateKey: string): number {
 
 type DialogKind = 'shortage' | 'manual' | null;
 
+type ScheduleViewFilter = 'escala' | 'pendencias' | 'frequencia';
+
+const SCHEDULE_VIEW_FILTERS: Array<{ id: ScheduleViewFilter; label: string }> = [
+  { id: 'escala', label: 'Escala' },
+  { id: 'pendencias', label: 'Pendências' },
+  { id: 'frequencia', label: 'Frequência' },
+];
+
 type SlotPickerState = {
   slotId: string;
   eventId: string;
@@ -82,6 +90,7 @@ export function ScheduleAdminView({
   const [dialog, setDialog] = useState<DialogKind>(null);
   const [error, setError] = useState<string | null>(null);
   const [tableLocked, setTableLocked] = useState(availabilityLocked);
+  const [viewFilter, setViewFilter] = useState<ScheduleViewFilter>('escala');
   const [slotPicker, setSlotPicker] = useState<SlotPickerState | null>(null);
   const [pickerQuery, setPickerQuery] = useState('');
   const [pendingReplace, setPendingReplace] = useState<PendingReplaceState | null>(null);
@@ -422,20 +431,6 @@ export function ScheduleAdminView({
 
         {error ? <p className="mt-4 text-sm text-red-700">{error}</p> : null}
 
-        {shortagePreview.length > 0 ? (
-          <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-            <p className="font-medium">Vagas sem cobertura suficiente neste período:</p>
-            <ul className="mt-2 space-y-1">
-              {shortagePreview.map((entry) => (
-                <li key={`${entry.eventId}-${entry.roleId}`}>
-                  {formatDate(entry.eventDate)} — {entry.roleName}: faltam {entry.missing} pessoa(s) (
-                  {entry.availableCandidates}/{entry.quantityNeeded} disponíveis)
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
-
         <div className="mt-5 flex flex-col items-start gap-2 sm:flex-row sm:flex-wrap">
           <button
             type="button"
@@ -468,8 +463,78 @@ export function ScheduleAdminView({
         </div>
       </section>
 
-      {overview ? (
-        <>
+      <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {SCHEDULE_VIEW_FILTERS.map((filter) => (
+          <button
+            key={filter.id}
+            type="button"
+            onClick={() => setViewFilter(filter.id)}
+            className={`shrink-0 rounded-full px-4 py-2 text-sm ${
+              viewFilter === filter.id
+                ? 'bg-zinc-900 text-white'
+                : 'border border-zinc-300 text-zinc-700'
+            }`}
+          >
+            {filter.label}
+          </button>
+        ))}
+      </div>
+
+      {viewFilter === 'pendencias' ? (
+        <section className="rounded-2xl border border-zinc-200 bg-white p-6">
+          <h3 className="text-sm font-semibold text-zinc-900">
+            Vagas sem cobertura suficiente neste período
+          </h3>
+          {shortagePreview.length > 0 ? (
+            <ul className="mt-3 space-y-2 text-sm text-zinc-700">
+              {shortagePreview.map((entry) => (
+                <li
+                  key={`${entry.eventId}-${entry.roleId}`}
+                  className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-amber-900"
+                >
+                  {formatDate(entry.eventDate)} — {entry.roleName}: faltam {entry.missing} pessoa(s) (
+                  {entry.availableCandidates}/{entry.quantityNeeded} disponíveis)
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-3 text-sm text-zinc-600">
+              Nenhuma pendência de cobertura neste período.
+            </p>
+          )}
+        </section>
+      ) : null}
+
+      {viewFilter === 'frequencia' ? (
+        <section className="rounded-2xl border border-zinc-200 bg-white p-6">
+          <h3 className="text-sm font-semibold text-zinc-900">Contagem de escalações no período</h3>
+          {!overview ? (
+            <p className="mt-3 text-sm text-zinc-600">
+              Gere a escala para ver a frequência de escalações.
+            </p>
+          ) : overview.memberCounts.length === 0 ? (
+            <p className="mt-3 text-sm text-zinc-500">Ninguém foi escalado ainda neste período.</p>
+          ) : (
+            <ul className="mt-4 space-y-2">
+              {overview.memberCounts.map((member) => (
+                <li
+                  key={member.membershipId}
+                  className="rounded-lg border border-zinc-100 px-4 py-2 text-sm"
+                >
+                  <span className="font-medium text-zinc-900">{member.memberName}</span>
+                  <span className="text-zinc-600">
+                    : {member.total} no total —{' '}
+                    {member.byRole.map((role) => `${role.count}x ${role.roleName}`).join(', ')}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      ) : null}
+
+      {viewFilter === 'escala' ? (
+        overview ? (
           <section>
             {matrix.columns.length === 0 || matrix.rows.length === 0 ? (
               <p className="rounded-2xl border border-zinc-200 bg-white p-6 text-sm text-zinc-600">
@@ -607,36 +672,12 @@ export function ScheduleAdminView({
               </div>
             )}
           </section>
-
-          <details className="rounded-2xl border border-zinc-200 bg-white p-6">
-            <summary className="cursor-pointer text-sm font-semibold text-zinc-900">
-              Contagem de escalações no período
-            </summary>
-            <ul className="mt-4 space-y-2">
-              {overview.memberCounts.length === 0 ? (
-                <p className="text-sm text-zinc-500">Ninguém foi escalado ainda neste período.</p>
-              ) : (
-                overview.memberCounts.map((member) => (
-                  <li
-                    key={member.membershipId}
-                    className="rounded-lg border border-zinc-100 px-4 py-2 text-sm"
-                  >
-                    <span className="font-medium text-zinc-900">{member.memberName}</span>
-                    <span className="text-zinc-600">
-                      : {member.total} no total —{' '}
-                      {member.byRole.map((role) => `${role.count}x ${role.roleName}`).join(', ')}
-                    </span>
-                  </li>
-                ))
-              )}
-            </ul>
-          </details>
-        </>
-      ) : (
-        <p className="rounded-2xl border border-zinc-200 bg-white p-6 text-sm text-zinc-600">
-          Nenhuma escala gerada para este mês ainda.
-        </p>
-      )}
+        ) : (
+          <p className="rounded-2xl border border-zinc-200 bg-white p-6 text-sm text-zinc-600">
+            Nenhuma escala gerada para este mês ainda.
+          </p>
+        )
+      ) : null}
 
       {slotPicker ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
