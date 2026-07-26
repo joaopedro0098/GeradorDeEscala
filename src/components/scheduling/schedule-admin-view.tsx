@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { MonthHistorySelect } from '@/components/scheduling/month-history-select';
 import { showSuccessToast } from '@/components/ui/success-toast';
@@ -12,10 +12,12 @@ import {
   setScheduleSlotMinisterAction,
   undoLastGenerationAction,
 } from '@/modules/scheduling/actions';
+import { buildScheduleMatrix } from '@/modules/scheduling/schedule.logic';
 import {
   GENERATION_STATUS_LABELS,
   type ScheduleAssignmentCandidate,
   type ScheduleOverview,
+  type ScheduleSlotView,
   type ShortageEntryView,
 } from '@/modules/scheduling/schedule.types';
 import { DAY_OF_WEEK_LABELS } from '@/modules/scheduling/types';
@@ -30,7 +32,26 @@ function formatDate(dateKey: string): string {
   }).format(new Date(Date.UTC(year, month - 1, day)));
 }
 
+function dayNumber(dateKey: string): number {
+  return Number(dateKey.split('-')[2]);
+}
+
 type DialogKind = 'shortage' | 'manual' | null;
+
+type SlotPickerState = {
+  slotId: string;
+  eventId: string;
+  roleId: string;
+  currentMembershipId: string | null;
+  currentMemberName: string | null;
+};
+
+type PendingReplaceState = {
+  slotId: string;
+  fromName: string;
+  toMembershipId: string | null;
+  toName: string;
+};
 
 export function ScheduleAdminView({
   workingMonth,
@@ -61,10 +82,22 @@ export function ScheduleAdminView({
   const [dialog, setDialog] = useState<DialogKind>(null);
   const [error, setError] = useState<string | null>(null);
   const [tableLocked, setTableLocked] = useState(availabilityLocked);
+  const [slotPicker, setSlotPicker] = useState<SlotPickerState | null>(null);
+  const [pickerQuery, setPickerQuery] = useState('');
+  const [pendingReplace, setPendingReplace] = useState<PendingReplaceState | null>(null);
+  const pickerInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setTableLocked(availabilityLocked);
   }, [availabilityLocked]);
+
+  useEffect(() => {
+    if (!slotPicker) return;
+    const timer = window.setTimeout(() => pickerInputRef.current?.focus(), 0);
+    return () => window.clearTimeout(timer);
+  }, [slotPicker]);
+
+  const matrix = buildScheduleMatrix(overview?.events ?? []);
 
   function eligibleForSlot(eventId: string, roleId: string): ScheduleAssignmentCandidate[] {
     return assignmentCandidates.filter(
@@ -72,6 +105,58 @@ export function ScheduleAdminView({
         candidate.roleIds.includes(roleId) && candidate.availableEventIds.includes(eventId),
     );
   }
+
+  function openSlotPicker(slot: ScheduleSlotView, eventId: string) {
+    if (readOnly || isPending) return;
+    setPickerQuery('');
+    setSlotPicker({
+      slotId: slot.id,
+      eventId,
+      roleId: slot.roleId,
+      currentMembershipId: slot.membershipId,
+      currentMemberName: slot.memberName,
+    });
+  }
+
+  function closeSlotPicker() {
+    setSlotPicker(null);
+    setPickerQuery('');
+  }
+
+  function proposeReplacement(candidate: {
+    membershipId: string | null;
+    memberName: string;
+  }) {
+    if (!slotPicker) return;
+    if (candidate.membershipId === slotPicker.currentMembershipId) {
+      closeSlotPicker();
+      return;
+    }
+    setPendingReplace({
+      slotId: slotPicker.slotId,
+      fromName: slotPicker.currentMemberName?.trim() || 'vazio',
+      toMembershipId: candidate.membershipId,
+      toName: candidate.memberName,
+    });
+    closeSlotPicker();
+  }
+
+  function confirmReplacement() {
+    if (!pendingReplace) return;
+    const { slotId, toMembershipId } = pendingReplace;
+    setPendingReplace(null);
+    handleAssignmentChange(slotId, toMembershipId);
+  }
+
+  function cancelReplacement() {
+    setPendingReplace(null);
+  }
+
+  const pickerCandidates = slotPicker
+    ? eligibleForSlot(slotPicker.eventId, slotPicker.roleId).filter((candidate) =>
+        candidate.memberName.toLowerCase().includes(pickerQuery.trim().toLowerCase()),
+      )
+    : [];
 
   function runGenerate(keepManual: boolean) {
     setDialog(null);
@@ -328,81 +413,110 @@ export function ScheduleAdminView({
 
       {overview ? (
         <>
-          <section className="space-y-3">
-            {overview.events.length === 0 ? (
+          <section>
+            {matrix.columns.length === 0 || matrix.rows.length === 0 ? (
               <p className="rounded-2xl border border-zinc-200 bg-white p-6 text-sm text-zinc-600">
                 Nenhuma vaga configurada para os dias de evento deste período.
               </p>
             ) : (
-              overview.events.map((event) => (
-                <div key={event.eventId} className="rounded-2xl border border-zinc-200 bg-white p-5">
-                  <h3 className="text-sm font-semibold text-zinc-900">
-                    {formatDate(event.date)} · {DAY_OF_WEEK_LABELS[event.dayOfWeek]}
-                  </h3>
-                  <ul className="mt-3 divide-y divide-zinc-100">
-                    {event.slots.map((slot) => {
-                      const eligible = eligibleForSlot(event.eventId, slot.roleId);
-                      return (
-                        <li
-                          key={slot.id}
-                          className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"
+              <div className="overflow-x-auto bg-white">
+                <table className="min-w-full border-collapse border border-zinc-400 text-sm leading-tight">
+                  <thead>
+                    <tr className="bg-zinc-100">
+                      <th className="sticky left-0 z-10 w-24 min-w-24 max-w-24 border border-zinc-400 bg-zinc-100 px-1 py-1 text-center text-xs font-semibold text-zinc-700 shadow-[1px_0_0_0_#a1a1aa]">
+                        Dia
+                      </th>
+                      {matrix.columns.map((column) => (
+                        <th
+                          key={column.roleId}
+                          className="min-w-36 border border-zinc-400 px-2 py-1 text-center text-xs font-semibold uppercase tracking-wide text-zinc-900"
                         >
-                          <span className="flex items-center gap-2 text-zinc-600">
-                            {slot.roleName}
-                            {slot.isManual ? (
-                              <span className="rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-xs text-sky-800">
-                                Manual
-                              </span>
-                            ) : null}
+                          {column.roleName}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {matrix.rows.map((row) => (
+                      <tr key={row.eventId} className="align-middle">
+                        <th className="sticky left-0 z-10 w-24 min-w-24 max-w-24 border border-zinc-400 bg-white px-1 py-0.5 text-center font-normal shadow-[1px_0_0_0_#a1a1aa]">
+                          <span className="block text-sm font-semibold leading-tight text-zinc-900">
+                            Dia {dayNumber(row.date)}
                           </span>
-                          <span className="flex flex-wrap items-center gap-2">
-                            <select
-                              value={slot.membershipId ?? ''}
-                              disabled={isPending || readOnly}
-                              onChange={(event) =>
-                                handleAssignmentChange(
-                                  slot.id,
-                                  event.target.value ? event.target.value : null,
-                                )
-                              }
-                              className="w-full max-w-none rounded-lg border border-zinc-300 bg-white px-2 py-1 text-sm text-zinc-900 disabled:opacity-60 sm:max-w-48"
-                            >
-                              <option value="">Vaga em branco</option>
-                              {slot.membershipId &&
-                              !eligible.some(
-                                (candidate) => candidate.membershipId === slot.membershipId,
-                              ) ? (
-                                <option value={slot.membershipId}>
-                                  {slot.memberName ?? 'Membro atual'}
-                                </option>
-                              ) : null}
-                              {eligible.map((candidate) => (
-                                <option key={candidate.membershipId} value={candidate.membershipId}>
-                                  {candidate.memberName}
-                                </option>
-                              ))}
-                            </select>
-                            {slot.membershipId ? (
-                              <button
-                                type="button"
-                                disabled={isPending || readOnly}
-                                onClick={() => handleToggleMinister(slot.id)}
-                                className={`rounded-full border px-2 py-0.5 text-xs disabled:opacity-60 ${
-                                  slot.isMinister
-                                    ? 'border-amber-400 bg-amber-100 text-amber-900'
-                                    : 'border-zinc-300 text-zinc-500 hover:bg-zinc-100'
-                                }`}
-                              >
-                                {slot.isMinister ? '★ Ministro' : 'Marcar ministro'}
-                              </button>
-                            ) : null}
+                          <span className="block whitespace-normal text-xs leading-tight text-zinc-600">
+                            {DAY_OF_WEEK_LABELS[row.dayOfWeek]}
                           </span>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </div>
-              ))
+                        </th>
+                        {row.cells.map((cell) => (
+                          <td
+                            key={`${row.eventId}-${cell.roleId}`}
+                            className="relative border border-zinc-400 px-1.5 py-0.5 text-center"
+                          >
+                            {cell.slots.length === 0 ? (
+                              <span className="text-zinc-400">—</span>
+                            ) : (
+                              <div className="space-y-0.5">
+                                {cell.slots.map((slot) => {
+                                  const label = slot.memberName?.trim() || 'vazio';
+                                  const isEmpty = !slot.membershipId;
+                                  return (
+                                    <div key={slot.id} className="relative px-0.5 py-0">
+                                      {readOnly ? (
+                                        <span
+                                          className={`block leading-5 ${
+                                            isEmpty ? 'italic text-zinc-400' : 'text-zinc-900'
+                                          }`}
+                                        >
+                                          {label}
+                                        </span>
+                                      ) : (
+                                        <button
+                                          type="button"
+                                          disabled={isPending}
+                                          onClick={() => openSlotPicker(slot, row.eventId)}
+                                          className={`block w-full rounded px-0.5 py-0 text-center leading-5 hover:bg-zinc-100 disabled:opacity-60 ${
+                                            isEmpty ? 'italic text-zinc-400' : 'text-zinc-900'
+                                          }`}
+                                        >
+                                          {label}
+                                        </button>
+                                      )}
+                                      {!readOnly && slot.membershipId ? (
+                                        <button
+                                          type="button"
+                                          disabled={isPending}
+                                          title={
+                                            slot.isMinister
+                                              ? 'Remover ministro'
+                                              : 'Marcar ministro'
+                                          }
+                                          onClick={() => handleToggleMinister(slot.id)}
+                                          className={`absolute top-0 right-0 leading-none disabled:opacity-60 ${
+                                            slot.isMinister
+                                              ? 'text-[10px] text-amber-700'
+                                              : 'text-[10px] text-zinc-300 hover:text-zinc-500'
+                                          }`}
+                                        >
+                                          ★
+                                        </button>
+                                      ) : null}
+                                      {readOnly && slot.isMinister ? (
+                                        <span className="absolute top-0 right-0 text-[10px] leading-none text-amber-700">
+                                          ★
+                                        </span>
+                                      ) : null}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </section>
 
@@ -435,6 +549,97 @@ export function ScheduleAdminView({
           Nenhuma escala gerada para este mês ainda.
         </p>
       )}
+
+      {slotPicker ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+            <h3 className="text-lg font-semibold text-zinc-900">Procurar pessoa</h3>
+            <p className="mt-1 text-sm text-zinc-600">
+              Digite o nome para filtrar quem pode ocupar esta vaga.
+            </p>
+            <input
+              ref={pickerInputRef}
+              type="search"
+              value={pickerQuery}
+              onChange={(event) => setPickerQuery(event.target.value)}
+              placeholder="Buscar pelo nome"
+              className="mt-4 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm text-zinc-900 outline-none focus:border-zinc-500"
+            />
+            <ul className="mt-3 max-h-64 space-y-1 overflow-y-auto">
+              {slotPicker.currentMembershipId ? (
+                <li>
+                  <button
+                    type="button"
+                    className="w-full rounded-lg px-3 py-2 text-left text-sm italic text-zinc-500 hover:bg-zinc-100"
+                    onClick={() =>
+                      proposeReplacement({ membershipId: null, memberName: 'vazio' })
+                    }
+                  >
+                    vazio
+                  </button>
+                </li>
+              ) : null}
+              {pickerCandidates.length === 0 ? (
+                <li className="px-3 py-2 text-sm text-zinc-500">Nenhuma pessoa encontrada.</li>
+              ) : (
+                pickerCandidates.map((candidate) => (
+                  <li key={candidate.membershipId}>
+                    <button
+                      type="button"
+                      className="w-full rounded-lg px-3 py-2 text-left text-sm text-zinc-900 hover:bg-zinc-100"
+                      onClick={() =>
+                        proposeReplacement({
+                          membershipId: candidate.membershipId,
+                          memberName: candidate.memberName,
+                        })
+                      }
+                    >
+                      {candidate.memberName}
+                    </button>
+                  </li>
+                ))
+              )}
+            </ul>
+            <div className="mt-4">
+              <button
+                type="button"
+                className="w-full rounded-lg border px-4 py-2 text-sm"
+                onClick={closeSlotPicker}
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {pendingReplace ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+            <h3 className="text-lg font-semibold text-zinc-900">Confirmar substituição</h3>
+            <p className="mt-3 text-sm leading-6 text-zinc-700">
+              Você irá substituir {pendingReplace.fromName} por {pendingReplace.toName}. Deseja
+              prosseguir?
+            </p>
+            <div className="mt-6 flex gap-2">
+              <button
+                type="button"
+                className="flex-1 rounded-lg border px-4 py-2 text-sm"
+                onClick={cancelReplacement}
+              >
+                Não
+              </button>
+              <button
+                type="button"
+                className="flex-1 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white"
+                onClick={confirmReplacement}
+              >
+                Sim
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {dialog === 'shortage' ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">

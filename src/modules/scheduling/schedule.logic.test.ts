@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   applyMinisterSelection,
+  buildScheduleMatrix,
   countAssignmentsByMember,
   countBlankSlotsInEvent,
   countBlankSlotsInOverview,
@@ -9,6 +10,85 @@ import {
   groupSlotsByEvent,
   hasBlankSlots,
 } from './schedule.logic';
+
+function slotView(overrides: {
+  id: string;
+  roleId: string;
+  roleName: string;
+  slotIndex?: number;
+  membershipId?: string | null;
+  memberName?: string | null;
+}) {
+  return {
+    id: overrides.id,
+    roleId: overrides.roleId,
+    roleName: overrides.roleName,
+    slotIndex: overrides.slotIndex ?? 0,
+    membershipId: overrides.membershipId ?? null,
+    memberName: overrides.memberName ?? null,
+    isManual: false,
+    isMinister: false,
+  };
+}
+
+describe('buildScheduleMatrix', () => {
+  it('builds one column per role used in the period and aligns cells per day', () => {
+    const matrix = buildScheduleMatrix([
+      {
+        eventId: 'ev-2',
+        date: '2026-08-12',
+        dayOfWeek: 'WEDNESDAY',
+        slots: [slotView({ id: 's3', roleId: 'bass', roleName: 'Baixo', memberName: 'Caio' })],
+      },
+      {
+        eventId: 'ev-1',
+        date: '2026-08-02',
+        dayOfWeek: 'SUNDAY',
+        slots: [
+          slotView({ id: 's2', roleId: 'drums', roleName: 'Bateria', slotIndex: 1 }),
+          slotView({ id: 's1', roleId: 'drums', roleName: 'Bateria', slotIndex: 0 }),
+        ],
+      },
+    ]);
+
+    expect(matrix.columns.map((column) => column.roleName)).toEqual(['Baixo', 'Bateria']);
+    expect(matrix.rows.map((row) => row.eventId)).toEqual(['ev-1', 'ev-2']);
+
+    const sunday = matrix.rows[0];
+    expect(sunday.cells.map((cell) => cell.roleId)).toEqual(['bass', 'drums']);
+    expect(sunday.cells[0].slots).toEqual([]);
+    expect(sunday.cells[1].slots.map((slot) => slot.id)).toEqual(['s1', 's2']);
+
+    const wednesday = matrix.rows[1];
+    expect(wednesday.cells[0].slots.map((slot) => slot.id)).toEqual(['s3']);
+    expect(wednesday.cells[1].slots).toEqual([]);
+  });
+
+  it('returns empty columns and rows when there are no events', () => {
+    expect(buildScheduleMatrix([])).toEqual({ columns: [], rows: [] });
+  });
+
+  it('places Voz as the first role column', () => {
+    const matrix = buildScheduleMatrix([
+      {
+        eventId: 'ev-1',
+        date: '2026-08-02',
+        dayOfWeek: 'SUNDAY',
+        slots: [
+          slotView({ id: 's1', roleId: 'bass', roleName: 'Baixo' }),
+          slotView({ id: 's2', roleId: 'voz', roleName: 'Voz' }),
+          slotView({ id: 's3', roleId: 'drums', roleName: 'Bateria' }),
+        ],
+      },
+    ]);
+
+    expect(matrix.columns.map((column) => column.roleName)).toEqual([
+      'Voz',
+      'Baixo',
+      'Bateria',
+    ]);
+  });
+});
 
 describe('groupSlotsByEvent', () => {
   it('groups slots under their event, sorted chronologically and by role', () => {

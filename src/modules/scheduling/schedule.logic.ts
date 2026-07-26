@@ -33,6 +33,60 @@ export function groupSlotsByEvent(
     }));
 }
 
+export type ScheduleMatrixColumn = { roleId: string; roleName: string };
+
+export type ScheduleMatrixRow = {
+  eventId: string;
+  date: string;
+  dayOfWeek: ScheduleEventView['dayOfWeek'];
+  /** One entry per column, in the same order as `columns`. */
+  cells: Array<{ roleId: string; slots: ScheduleSlotView[] }>;
+};
+
+export type ScheduleMatrix = {
+  columns: ScheduleMatrixColumn[];
+  rows: ScheduleMatrixRow[];
+};
+
+/**
+ * Reshapes the per-event slot lists into a day × role grid: one row per event
+ * (chronological) and one column per role used anywhere in the period, so a
+ * role missing on a given day still lines up under its own column.
+ */
+export function buildScheduleMatrix(events: ScheduleEventView[]): ScheduleMatrix {
+  const roleNameById = new Map<string, string>();
+  for (const event of events) {
+    for (const slot of event.slots) {
+      roleNameById.set(slot.roleId, slot.roleName);
+    }
+  }
+
+  const columns: ScheduleMatrixColumn[] = [...roleNameById.entries()]
+    .map(([roleId, roleName]) => ({ roleId, roleName }))
+    .sort((a, b) => {
+      const aIsVoz = a.roleName.trim().toLowerCase() === 'voz' ? 0 : 1;
+      const bIsVoz = b.roleName.trim().toLowerCase() === 'voz' ? 0 : 1;
+      if (aIsVoz !== bIsVoz) return aIsVoz - bIsVoz;
+      return a.roleName.localeCompare(b.roleName) || a.roleId.localeCompare(b.roleId);
+    });
+
+  const rows: ScheduleMatrixRow[] = [...events]
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .map((event) => ({
+      eventId: event.eventId,
+      date: event.date,
+      dayOfWeek: event.dayOfWeek,
+      cells: columns.map((column) => ({
+        roleId: column.roleId,
+        slots: event.slots
+          .filter((slot) => slot.roleId === column.roleId)
+          .sort((a, b) => a.slotIndex - b.slotIndex),
+      })),
+    }));
+
+  return { columns, rows };
+}
+
 /** True when at least one slot in the period has no one assigned. */
 export function hasBlankSlots(slots: Array<{ membershipId: string | null }>): boolean {
   return slots.some((slot) => slot.membershipId === null);
