@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   Building2,
   CalendarCheck,
@@ -92,6 +92,7 @@ export function AppShell({
   const orgName = session?.organizationName ?? 'Equipgestor';
   const logoUrl = session?.organizationLogoUrl ?? null;
   const [collapsed, setCollapsed] = useState(false);
+  const autoCollapsedPathRef = useRef<string | null>(null);
 
   useEffect(() => {
     try {
@@ -100,6 +101,20 @@ export function AppShell({
       // ignore storage access errors
     }
   }, []);
+
+  // The admin schedule grid is wide, so entering it collapses the menu once.
+  // Expanding it manually afterwards sticks until the route changes again.
+  useEffect(() => {
+    if (!pathname) return;
+    const isAdminSchedule = isNavActive(pathname, '/admin/escala');
+    if (!isAdminSchedule) {
+      autoCollapsedPathRef.current = null;
+      return;
+    }
+    if (autoCollapsedPathRef.current === pathname) return;
+    autoCollapsedPathRef.current = pathname;
+    setCollapsed(true);
+  }, [pathname]);
 
   function toggleCollapsed() {
     setCollapsed((current) => {
@@ -112,6 +127,8 @@ export function AppShell({
       return next;
     });
   }
+
+  const isAdminSchedule = Boolean(pathname && isNavActive(pathname, '/admin/escala'));
 
   return (
     <div className="app-shell relative min-h-screen">
@@ -248,8 +265,18 @@ export function AppShell({
             collapsed ? 'ml-[4.5rem]' : 'ml-60'
           }`}
         >
-          <main className="flex-1 px-[60px] py-6 sm:py-8">
-            <div className="mx-auto w-full max-w-5xl">{children}</div>
+          <main
+            className={
+              isAdminSchedule
+                ? 'flex-1 px-3 py-4 sm:px-4 sm:py-6'
+                : 'flex-1 px-[60px] py-6 sm:py-8'
+            }
+          >
+            <div
+              className={`mx-auto w-full ${isAdminSchedule ? 'max-w-none' : 'max-w-5xl'}`}
+            >
+              {children}
+            </div>
           </main>
         </div>
       </div>

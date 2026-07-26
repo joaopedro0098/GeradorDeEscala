@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition, type PointerEvent as ReactPointerEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { MonthHistorySelect } from '@/components/scheduling/month-history-select';
 import { showSuccessToast } from '@/components/ui/success-toast';
@@ -85,7 +85,17 @@ export function ScheduleAdminView({
   const [slotPicker, setSlotPicker] = useState<SlotPickerState | null>(null);
   const [pickerQuery, setPickerQuery] = useState('');
   const [pendingReplace, setPendingReplace] = useState<PendingReplaceState | null>(null);
+  const [isPanning, setIsPanning] = useState(false);
   const pickerInputRef = useRef<HTMLInputElement>(null);
+  const tableScrollRef = useRef<HTMLDivElement>(null);
+  const panRef = useRef<{
+    pointerId: number;
+    startX: number;
+    startY: number;
+    scrollLeft: number;
+    scrollTop: number;
+    moved: boolean;
+  } | null>(null);
 
   useEffect(() => {
     setTableLocked(availabilityLocked);
@@ -150,6 +160,53 @@ export function ScheduleAdminView({
 
   function cancelReplacement() {
     setPendingReplace(null);
+  }
+
+  function handleTablePointerDown(event: ReactPointerEvent<HTMLDivElement>) {
+    if (event.button !== 0) return;
+    const container = tableScrollRef.current;
+    if (!container) return;
+    panRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      scrollLeft: container.scrollLeft,
+      scrollTop: container.scrollTop,
+      moved: false,
+    };
+    setIsPanning(true);
+    container.setPointerCapture(event.pointerId);
+  }
+
+  function handleTablePointerMove(event: ReactPointerEvent<HTMLDivElement>) {
+    const pan = panRef.current;
+    const container = tableScrollRef.current;
+    if (!pan || pan.pointerId !== event.pointerId || !container) return;
+    const dx = event.clientX - pan.startX;
+    const dy = event.clientY - pan.startY;
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+      pan.moved = true;
+    }
+    container.scrollLeft = pan.scrollLeft - dx;
+    container.scrollTop = pan.scrollTop - dy;
+  }
+
+  function endTablePan(event: ReactPointerEvent<HTMLDivElement>) {
+    const pan = panRef.current;
+    if (!pan || pan.pointerId !== event.pointerId) return;
+    const container = tableScrollRef.current;
+    if (container?.hasPointerCapture(event.pointerId)) {
+      container.releasePointerCapture(event.pointerId);
+    }
+    // Keep `moved` until the following click so name/star clicks can ignore drag releases.
+    window.setTimeout(() => {
+      if (panRef.current === pan) panRef.current = null;
+    }, 0);
+    setIsPanning(false);
+  }
+
+  function wasTableDragged(): boolean {
+    return Boolean(panRef.current?.moved);
   }
 
   const pickerCandidates = slotPicker
@@ -419,17 +476,37 @@ export function ScheduleAdminView({
                 Nenhuma vaga configurada para os dias de evento deste período.
               </p>
             ) : (
-              <div className="overflow-x-auto bg-white">
-                <table className="min-w-full border-collapse border border-zinc-400 text-sm leading-tight">
+              <div
+                ref={tableScrollRef}
+                onPointerDown={handleTablePointerDown}
+                onPointerMove={handleTablePointerMove}
+                onPointerUp={endTablePan}
+                onPointerCancel={endTablePan}
+                className={`max-h-[calc(100vh-8rem)] overflow-auto bg-white ${
+                  isPanning ? 'cursor-grabbing select-none' : 'cursor-default'
+                }`}
+              >
+                <table
+                  className="w-full table-fixed border-collapse border border-zinc-400 text-sm leading-tight"
+                  style={{
+                    minWidth: `calc(6rem + ${matrix.columns.length} * 7rem)`,
+                  }}
+                >
+                  <colgroup>
+                    <col style={{ width: '6rem' }} />
+                    {matrix.columns.map((column) => (
+                      <col key={column.roleId} />
+                    ))}
+                  </colgroup>
                   <thead>
                     <tr className="bg-zinc-100">
-                      <th className="sticky left-0 z-10 w-24 min-w-24 max-w-24 border border-zinc-400 bg-zinc-100 px-1 py-1 text-center text-xs font-semibold text-zinc-700 shadow-[1px_0_0_0_#a1a1aa]">
+                      <th className="sticky left-0 z-10 border border-zinc-400 bg-zinc-100 px-1 py-1 text-center text-xs font-semibold text-zinc-700 shadow-[1px_0_0_0_#a1a1aa]">
                         Dia
                       </th>
                       {matrix.columns.map((column) => (
                         <th
                           key={column.roleId}
-                          className="min-w-36 border border-zinc-400 px-2 py-1 text-center text-xs font-semibold uppercase tracking-wide text-zinc-900"
+                          className="border border-zinc-400 px-1.5 py-1 text-center text-xs font-semibold uppercase tracking-wide break-words text-zinc-900"
                         >
                           {column.roleName}
                         </th>
@@ -439,7 +516,7 @@ export function ScheduleAdminView({
                   <tbody>
                     {matrix.rows.map((row) => (
                       <tr key={row.eventId} className="align-middle">
-                        <th className="sticky left-0 z-10 w-24 min-w-24 max-w-24 border border-zinc-400 bg-white px-1 py-0.5 text-center font-normal shadow-[1px_0_0_0_#a1a1aa]">
+                        <th className="sticky left-0 z-10 border border-zinc-400 bg-white px-1 py-0.5 text-center font-normal shadow-[1px_0_0_0_#a1a1aa]">
                           <span className="block text-sm font-semibold leading-tight text-zinc-900">
                             Dia {dayNumber(row.date)}
                           </span>
@@ -450,20 +527,25 @@ export function ScheduleAdminView({
                         {row.cells.map((cell) => (
                           <td
                             key={`${row.eventId}-${cell.roleId}`}
-                            className="relative border border-zinc-400 px-1.5 py-0.5 text-center"
+                            className="min-h-10 border border-zinc-400 px-1 py-0.5 text-center align-middle"
                           >
                             {cell.slots.length === 0 ? (
-                              <span className="text-zinc-400">—</span>
+                              <span className="inline-flex h-5 items-center justify-center text-zinc-400">
+                                —
+                              </span>
                             ) : (
-                              <div className="space-y-0.5">
+                              <div className="flex min-h-5 flex-col justify-center space-y-0.5">
                                 {cell.slots.map((slot) => {
                                   const label = slot.memberName?.trim() || 'vazio';
                                   const isEmpty = !slot.membershipId;
                                   return (
-                                    <div key={slot.id} className="relative px-0.5 py-0">
+                                    <div
+                                      key={slot.id}
+                                      className="relative flex min-h-5 items-center justify-center px-0.5 py-0 pr-3"
+                                    >
                                       {readOnly ? (
                                         <span
-                                          className={`block leading-5 ${
+                                          className={`block w-full break-words whitespace-normal leading-5 ${
                                             isEmpty ? 'italic text-zinc-400' : 'text-zinc-900'
                                           }`}
                                         >
@@ -473,8 +555,11 @@ export function ScheduleAdminView({
                                         <button
                                           type="button"
                                           disabled={isPending}
-                                          onClick={() => openSlotPicker(slot, row.eventId)}
-                                          className={`block w-full rounded px-0.5 py-0 text-center leading-5 hover:bg-zinc-100 disabled:opacity-60 ${
+                                          onClick={() => {
+                                            if (wasTableDragged()) return;
+                                            openSlotPicker(slot, row.eventId);
+                                          }}
+                                          className={`block w-full rounded px-0.5 py-0 text-center leading-5 break-words whitespace-normal hover:bg-zinc-100 disabled:opacity-60 ${
                                             isEmpty ? 'italic text-zinc-400' : 'text-zinc-900'
                                           }`}
                                         >
@@ -490,7 +575,10 @@ export function ScheduleAdminView({
                                               ? 'Remover ministro'
                                               : 'Marcar ministro'
                                           }
-                                          onClick={() => handleToggleMinister(slot.id)}
+                                          onClick={() => {
+                                            if (wasTableDragged()) return;
+                                            handleToggleMinister(slot.id);
+                                          }}
                                           className={`absolute top-0 right-0 leading-none disabled:opacity-60 ${
                                             slot.isMinister
                                               ? 'text-[10px] text-amber-700'
