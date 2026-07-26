@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
-import type { DayOfWeek, IntervalCountMode } from '@/generated/prisma/client';
+import type { DayOfWeek } from '@/generated/prisma/client';
 import { requireSession } from '@/lib/auth.server';
 import { prisma } from '@/lib/prisma';
 import { canManageMembers } from '@/modules/auth/permissions';
@@ -21,7 +21,6 @@ import {
   toggleEventDate,
   upsertDayRequirement,
   upsertDayRequirementsForDay,
-  upsertIntervalRule,
 } from '@/modules/scheduling/configuration.service';
 import {
   generateSchedule,
@@ -209,34 +208,6 @@ export async function saveDayRoleQuantityAction(
     });
     revalidateConfiguration();
     return {};
-  } catch (error) {
-    return mapError(error);
-  }
-}
-
-export async function saveGeneralIntervalRuleAction(
-  _prev: { error?: string; success?: string },
-  formData: FormData,
-): Promise<{ error?: string; success?: string }> {
-  try {
-    const session = await requireAdminSession();
-    const parsed = z
-      .object({
-        intervalCount: z.coerce.number().int().min(0),
-        countMode: z.enum(['BY_EVENT', 'BY_DAY_OF_WEEK']),
-      })
-      .parse({
-        intervalCount: formData.get('intervalCount'),
-        countMode: formData.get('countMode'),
-      });
-
-    await upsertIntervalRule({
-      organizationId: session.organizationId,
-      intervalCount: parsed.intervalCount,
-      countMode: parsed.countMode as IntervalCountMode,
-    });
-    revalidateConfiguration();
-    return { success: 'Regra geral de intervalo salva.' };
   } catch (error) {
     return mapError(error);
   }

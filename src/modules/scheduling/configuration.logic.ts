@@ -47,10 +47,6 @@ export function validateMinimumDays(minimumDays: number): boolean {
   return Number.isInteger(minimumDays) && minimumDays >= 0;
 }
 
-export function validateIntervalCount(intervalCount: number): boolean {
-  return Number.isInteger(intervalCount) && intervalCount >= 0;
-}
-
 export function reorderPriorityRoleIds(
   currentRoleIds: string[],
   roleId: string,

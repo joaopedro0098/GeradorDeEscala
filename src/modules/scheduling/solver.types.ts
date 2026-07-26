@@ -17,27 +17,10 @@ export type SolverRolePreferenceInput = {
   sortOrder: number;
 };
 
-export type SolverRoleCombinationInput = {
-  roleAId: string;
-  roleBId: string;
-};
-
 export type SolverMemberInput = {
   membershipId: string;
   availableEventIds: string[];
   rolePreferences: SolverRolePreferenceInput[];
-  /**
-   * Pairs of roles this member has explicitly marked as safe to accumulate
-   * simultaneously in the same event (e.g. "guitar + vocals"). Used only as
-   * a scarcity fallback in the solver — never the preferred outcome.
-   */
-  compatibleRolePairs?: SolverRoleCombinationInput[];
-};
-
-/** Organization-wide interval rule; per-role rules no longer exist. */
-export type SolverIntervalRuleInput = {
-  intervalCount: number;
-  countMode: 'BY_EVENT' | 'BY_DAY_OF_WEEK';
 };
 
 export type SolverPriorityRoleInput = {
@@ -51,20 +34,13 @@ export type SolverPriorMonthAssignmentInput = {
   count: number;
 };
 
-export type SolverGroupMode = 'FLEXIBLE' | 'STRICT';
-
-export type SolverGroupInput = {
-  groupId: string;
-  mode: SolverGroupMode;
-  /**
-   * Members of the group. A membership can belong to at most one group
-   * (enforced by a unique constraint on GroupMembership.membershipId), so
-   * groups never overlap.
-   */
-  membershipIds: string[];
+export type SolverRoleCatalogInput = {
+  id: string;
+  /** ISO timestamp; used to order roles that are not in PriorityRole. */
+  createdAt: string;
 };
 
-/** Admin-locked slot preserved during partial regeneration (spec 5.4 keep_manual). */
+/** Admin-locked slot preserved during partial regeneration (keep_manual). */
 export type SolverPinnedSlotInput = {
   eventId: string;
   roleId: string;
@@ -76,16 +52,12 @@ export type SolverInput = {
   events: SolverEventInput[];
   requirements: SolverRequirementInput[];
   members: SolverMemberInput[];
-  intervalRule: SolverIntervalRuleInput | null;
   priorityRoles: SolverPriorityRoleInput[];
+  /** All org roles (for processing order after PriorityRole). */
+  roles: SolverRoleCatalogInput[];
   priorMonthAssignments?: SolverPriorMonthAssignmentInput[];
-  groups?: SolverGroupInput[];
   /** Manual assignments the solver must not change (keep_manual). */
   pinnedSlots?: SolverPinnedSlotInput[];
-  /** Anytime search budget in milliseconds. Defaults to 8000ms. */
-  timeoutMs?: number;
-  /** Injectable clock, primarily for deterministic tests. */
-  now?: () => number;
 };
 
 export type SolverAssignedSlot = {
@@ -93,13 +65,7 @@ export type SolverAssignedSlot = {
   roleId: string;
   slotIndex: number;
   membershipId: string | null;
-  /** True when this slot was filled by relaxing the interval rule for a high-priority role (4.2). */
-  filledByPriorityOverride: boolean;
-  /** True when this slot was filled by accumulating a role onto a person already serving elsewhere in the same event. */
-  filledByRoleStacking: boolean;
-  /** True when this slot was pre-assigned by a STRICT member group match, before the general search ran. */
-  filledByGroupPin: boolean;
-  /** True when this slot was locked by an admin manual assignment (spec 5.4 keep_manual). */
+  /** True when this slot was locked by an admin manual assignment (keep_manual). */
   filledByManualPin: boolean;
 };
 

@@ -379,11 +379,6 @@ export async function listActiveMembers(organizationId: string) {
           role: { select: { id: true, name: true } },
         },
       },
-      groupMembership: {
-        select: {
-          group: { select: { id: true, name: true } },
-        },
-      },
     },
     orderBy: { createdAt: 'asc' },
   });

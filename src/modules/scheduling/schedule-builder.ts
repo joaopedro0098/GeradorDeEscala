@@ -1,22 +1,19 @@
 import type { DayOfWeek } from '@/generated/prisma/client';
 import type {
   SolverEventInput,
-  SolverGroupInput,
-  SolverGroupMode,
   SolverInput,
-  SolverIntervalRuleInput,
   SolverMemberInput,
   SolverPinnedSlotInput,
   SolverPriorityRoleInput,
   SolverPriorMonthAssignmentInput,
   SolverRequirementInput,
+  SolverRoleCatalogInput,
 } from './solver.types';
 
 /**
  * Pure bridge between raw persisted data (already fetched from Prisma by
  * schedule.service.ts, reshaped into plain objects) and the solver's own
- * input contract. Kept free of Prisma/I-O so it stays unit-testable like
- * the rest of the solver module.
+ * input contract. Kept free of Prisma/I-O so it stays unit-testable.
  */
 
 /**
@@ -47,8 +44,7 @@ export function expandRequirementsForEvents(
 
 /**
  * Counts, per (membershipId, roleId), how many slots a previous schedule's
- * assignments cover — the "previous period" signal used as the final
- * equity tie-break (4.3). Blank slots (no membershipId) never count.
+ * assignments cover — prior-month equity tie-break. Blank slots never count.
  */
 export function buildPriorMonthAssignments(
   priorSlots: Array<{ membershipId: string | null; roleId: string }>,
@@ -67,23 +63,6 @@ export function buildPriorMonthAssignments(
   }
 
   return [...counts.values()];
-}
-
-/**
- * Maps raw member groups into the solver's contract, defensively dropping
- * any group left with fewer than 2 members (e.g. after member removals) —
- * a group of 0 or 1 has nothing meaningful to coordinate.
- */
-export function buildSolverGroups(
-  groups: Array<{ id: string; mode: SolverGroupMode; membershipIds: string[] }>,
-): SolverGroupInput[] {
-  return groups
-    .filter((group) => group.membershipIds.length >= 2)
-    .map((group) => ({
-      groupId: group.id,
-      mode: group.mode,
-      membershipIds: group.membershipIds,
-    }));
 }
 
 /**
@@ -113,13 +92,10 @@ export type BuildSolverInputParams = {
   events: SolverEventInput[];
   dayRequirements: Array<{ dayOfWeek: DayOfWeek; roleId: string; quantity: number }>;
   members: SolverMemberInput[];
-  intervalRule: SolverIntervalRuleInput | null;
   priorityRoles: SolverPriorityRoleInput[];
+  roles: SolverRoleCatalogInput[];
   priorMonthSlots: Array<{ membershipId: string | null; roleId: string }>;
-  groups: Array<{ id: string; mode: SolverGroupMode; membershipIds: string[] }>;
   pinnedSlots?: SolverPinnedSlotInput[];
-  timeoutMs?: number;
-  now?: () => number;
 };
 
 /**
@@ -131,12 +107,9 @@ export function buildSolverInput(params: BuildSolverInputParams): SolverInput {
     events: params.events,
     requirements: expandRequirementsForEvents(params.events, params.dayRequirements),
     members: params.members,
-    intervalRule: params.intervalRule,
     priorityRoles: params.priorityRoles,
+    roles: params.roles,
     priorMonthAssignments: buildPriorMonthAssignments(params.priorMonthSlots),
-    groups: buildSolverGroups(params.groups),
     pinnedSlots: params.pinnedSlots,
-    timeoutMs: params.timeoutMs,
-    now: params.now,
   };
 }

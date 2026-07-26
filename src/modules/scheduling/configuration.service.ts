@@ -1,10 +1,9 @@
-import type { DayOfWeek, IntervalCountMode } from '@/generated/prisma/client';
+import type { DayOfWeek } from '@/generated/prisma/client';
 import { prisma } from '@/lib/prisma';
 import {
   normalizeRoleName,
   parseDateKey,
   reorderPriorityRoleIds,
-  validateIntervalCount,
   validateMinimumDays,
   validateQuantity,
 } from '@/modules/scheduling/configuration.logic';
@@ -21,35 +20,31 @@ export async function getScheduleConfiguration(
 ): Promise<ScheduleConfigurationSnapshot> {
   await ensureAllRolesInPriority(organizationId);
 
-  const [roles, events, dayRequirements, intervalRule, priorityRoles, participationConfig] =
-    await Promise.all([
-      prisma.role.findMany({
-        where: { organizationId },
-        orderBy: { name: 'asc' },
-        select: { id: true, name: true },
-      }),
-      prisma.event.findMany({
-        where: { organizationId },
-        orderBy: { date: 'asc' },
-        select: { id: true, date: true },
-      }),
-      prisma.dayOfWeekRequirement.findMany({
-        where: { organizationId },
-        include: { role: { select: { name: true } } },
-        orderBy: [{ dayOfWeek: 'asc' }, { role: { name: 'asc' } }],
-      }),
-      prisma.intervalRule.findUnique({
-        where: { organizationId },
-      }),
-      prisma.priorityRole.findMany({
-        where: { organizationId },
-        include: { role: { select: { name: true } } },
-        orderBy: { sortOrder: 'asc' },
-      }),
-      prisma.participationConfig.findUnique({
-        where: { organizationId },
-      }),
-    ]);
+  const [roles, events, dayRequirements, priorityRoles, participationConfig] = await Promise.all([
+    prisma.role.findMany({
+      where: { organizationId },
+      orderBy: { name: 'asc' },
+      select: { id: true, name: true },
+    }),
+    prisma.event.findMany({
+      where: { organizationId },
+      orderBy: { date: 'asc' },
+      select: { id: true, date: true },
+    }),
+    prisma.dayOfWeekRequirement.findMany({
+      where: { organizationId },
+      include: { role: { select: { name: true } } },
+      orderBy: [{ dayOfWeek: 'asc' }, { role: { name: 'asc' } }],
+    }),
+    prisma.priorityRole.findMany({
+      where: { organizationId },
+      include: { role: { select: { name: true } } },
+      orderBy: { sortOrder: 'asc' },
+    }),
+    prisma.participationConfig.findUnique({
+      where: { organizationId },
+    }),
+  ]);
 
   return {
     roles,
@@ -63,12 +58,6 @@ export async function getScheduleConfiguration(
       roleName: requirement.role.name,
       quantity: requirement.quantity,
     })),
-    generalIntervalRule: intervalRule
-      ? {
-          intervalCount: intervalRule.intervalCount,
-          countMode: intervalRule.countMode,
-        }
-      : null,
     priorityRoles: priorityRoles.map((priorityRole) => ({
       roleId: priorityRole.roleId,
       roleName: priorityRole.role.name,
@@ -233,29 +222,6 @@ export async function upsertDayRequirementsForDay(input: {
       quantity: requirement.quantity,
     });
   }
-}
-
-export async function upsertIntervalRule(input: {
-  organizationId: string;
-  intervalCount: number;
-  countMode: IntervalCountMode;
-}): Promise<void> {
-  if (!validateIntervalCount(input.intervalCount)) {
-    throw new ConfigurationServiceError('Intervalo inválido.');
-  }
-
-  await prisma.intervalRule.upsert({
-    where: { organizationId: input.organizationId },
-    update: {
-      intervalCount: input.intervalCount,
-      countMode: input.countMode,
-    },
-    create: {
-      organizationId: input.organizationId,
-      intervalCount: input.intervalCount,
-      countMode: input.countMode,
-    },
-  });
 }
 
 export async function setPriorityRoleOrder(

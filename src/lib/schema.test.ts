@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   DayOfWeek,
-  IntervalCountMode,
   MembershipStatus,
   NotificationType,
   PlanTier,
@@ -24,9 +23,7 @@ describe('Prisma schema enums', () => {
     expect(ScheduleGenerationStatus.INCOMPLETE_BY_TIMEOUT).toBe('INCOMPLETE_BY_TIMEOUT');
   });
 
-  it('exports configuration enums for interval and priority rules', () => {
-    expect(IntervalCountMode.BY_EVENT).toBe('BY_EVENT');
-    expect(IntervalCountMode.BY_DAY_OF_WEEK).toBe('BY_DAY_OF_WEEK');
+  it('exports day-of-week values for formation rules', () => {
     expect(DayOfWeek.SUNDAY).toBe('SUNDAY');
     expect(DayOfWeek.SATURDAY).toBe('SATURDAY');
   });
@@ -55,11 +52,17 @@ describe('Prisma schema model coverage', () => {
     'DayOfWeekRequirement',
     'Availability',
     'ParticipationConfig',
-    'IntervalRule',
     'PriorityRole',
     'Schedule',
     'ScheduleSlot',
     'Notification',
+  ];
+
+  const removedModels = [
+    'IntervalRule',
+    'MemberGroup',
+    'GroupMembership',
+    'MembershipRoleCombination',
   ];
 
   it('generates a client entry for every planned entity', async () => {
@@ -67,6 +70,14 @@ describe('Prisma schema model coverage', () => {
 
     for (const model of expectedModels) {
       expect(Object.prototype.hasOwnProperty.call(Prisma.ModelName, model)).toBe(true);
+    }
+  });
+
+  it('no longer exposes removed scheduling models', async () => {
+    const { Prisma } = await import('@/generated/prisma/client');
+
+    for (const model of removedModels) {
+      expect(Object.prototype.hasOwnProperty.call(Prisma.ModelName, model)).toBe(false);
     }
   });
 });

@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import {
   buildManualPinnedSlots,
   buildPriorMonthAssignments,
-  buildSolverGroups,
   buildSolverInput,
   expandRequirementsForEvents,
 } from './schedule-builder';
@@ -66,30 +65,6 @@ describe('buildPriorMonthAssignments', () => {
   });
 });
 
-describe('buildSolverGroups', () => {
-  it('maps groups to the solver contract', () => {
-    const groups = [
-      { id: 'group-1', mode: 'STRICT' as const, membershipIds: ['mem-1', 'mem-2'] },
-    ];
-
-    expect(buildSolverGroups(groups)).toEqual([
-      { groupId: 'group-1', mode: 'STRICT', membershipIds: ['mem-1', 'mem-2'] },
-    ]);
-  });
-
-  it('drops groups left with fewer than 2 members', () => {
-    const groups = [
-      { id: 'group-1', mode: 'FLEXIBLE' as const, membershipIds: ['mem-1'] },
-      { id: 'group-2', mode: 'FLEXIBLE' as const, membershipIds: [] },
-      { id: 'group-3', mode: 'STRICT' as const, membershipIds: ['mem-3', 'mem-4'] },
-    ];
-
-    expect(buildSolverGroups(groups)).toEqual([
-      { groupId: 'group-3', mode: 'STRICT', membershipIds: ['mem-3', 'mem-4'] },
-    ]);
-  });
-});
-
 describe('buildSolverInput', () => {
   it('composes a full solver input from raw loaded data', () => {
     const input = buildSolverInput({
@@ -100,14 +75,11 @@ describe('buildSolverInput', () => {
           membershipId: 'mem-1',
           availableEventIds: ['ev-1'],
           rolePreferences: [{ roleId: 'role-guitar', sortOrder: 1 }],
-          compatibleRolePairs: [],
         },
       ],
-      intervalRule: null,
-      priorityRoles: [],
+      priorityRoles: [{ roleId: 'role-guitar', sortOrder: 1 }],
+      roles: [{ id: 'role-guitar', createdAt: '2026-01-01T00:00:00.000Z' }],
       priorMonthSlots: [{ membershipId: 'mem-1', roleId: 'role-guitar' }],
-      groups: [],
-      timeoutMs: 5000,
     });
 
     expect(input.events).toEqual([{ id: 'ev-1', date: '2026-08-02', dayOfWeek: 'SUNDAY' }]);
@@ -116,8 +88,7 @@ describe('buildSolverInput', () => {
     expect(input.priorMonthAssignments).toEqual([
       { membershipId: 'mem-1', roleId: 'role-guitar', count: 1 },
     ]);
-    expect(input.groups).toEqual([]);
-    expect(input.timeoutMs).toBe(5000);
+    expect(input.roles).toEqual([{ id: 'role-guitar', createdAt: '2026-01-01T00:00:00.000Z' }]);
   });
 });
 

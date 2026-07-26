@@ -20,11 +20,6 @@ export const DAY_OF_WEEK_LABELS: Record<DayOfWeek, string> = {
   SATURDAY: 'Sábado',
 };
 
-export const INTERVAL_COUNT_MODE_LABELS = {
-  BY_EVENT: 'Por evento',
-  BY_DAY_OF_WEEK: 'Por dia da semana',
-} as const;
-
 export type RoleSummary = {
   id: string;
   name: string;
@@ -42,11 +37,6 @@ export type DayRequirementSummary = {
   quantity: number;
 };
 
-export type IntervalRuleSummary = {
-  intervalCount: number;
-  countMode: 'BY_EVENT' | 'BY_DAY_OF_WEEK';
-};
-
 export type PriorityRoleSummary = {
   roleId: string;
   roleName: string;
@@ -57,7 +47,6 @@ export type ScheduleConfigurationSnapshot = {
   roles: RoleSummary[];
   events: EventDateSummary[];
   dayRequirements: DayRequirementSummary[];
-  generalIntervalRule: IntervalRuleSummary | null;
   priorityRoles: PriorityRoleSummary[];
   participationMinimumDays: number | null;
 };

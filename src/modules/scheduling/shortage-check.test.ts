@@ -1,11 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { computeShortage, hasShortage } from './shortage-check';
-import type {
-  SolverEventInput,
-  SolverGroupInput,
-  SolverMemberInput,
-  SolverRequirementInput,
-} from './solver.types';
+import type { SolverMemberInput, SolverRequirementInput } from './solver.types';
 
 function member(id: string, roleIds: string[], eventIds: string[]): SolverMemberInput {
   return {
@@ -13,10 +8,6 @@ function member(id: string, roleIds: string[], eventIds: string[]): SolverMember
     availableEventIds: eventIds,
     rolePreferences: roleIds.map((roleId, index) => ({ roleId, sortOrder: index + 1 })),
   };
-}
-
-function event(id: string, date: string): SolverEventInput {
-  return { id, date, dayOfWeek: 'SUNDAY' };
 }
 
 describe('computeShortage', () => {
@@ -56,78 +47,6 @@ describe('computeShortage', () => {
     const shortages = computeShortage({ requirements, members });
     expect(shortages).toHaveLength(1);
     expect(shortages[0].availableCandidates).toBe(0);
-  });
-});
-
-describe('computeShortage — STRICT member groups', () => {
-  it('subtracts a feasible STRICT group match from the quantity needed', () => {
-    const requirements: SolverRequirementInput[] = [
-      { eventId: 'e1', roleId: 'vocal', quantity: 1 },
-    ];
-    const members: SolverMemberInput[] = [member('a', ['vocal'], ['e1'])];
-    const groups: SolverGroupInput[] = [{ groupId: 'g1', mode: 'STRICT', membershipIds: ['a'] }];
-
-    const shortages = computeShortage({
-      requirements,
-      members,
-      events: [event('e1', '2026-08-02')],
-      intervalRule: null,
-      groups,
-    });
-
-    // "a" alone fully covers the single vocal slot via the group pin.
-    expect(shortages).toEqual([]);
-  });
-
-  it('does not count members excluded by an infeasible STRICT group as available candidates', () => {
-    const requirements: SolverRequirementInput[] = [
-      { eventId: 'e1', roleId: 'vocal', quantity: 1 },
-    ];
-    const members: SolverMemberInput[] = [
-      member('a', ['vocal'], ['e1']),
-      member('b', ['vocal'], []), // unavailable -> whole group excluded from e1
-    ];
-    const groups: SolverGroupInput[] = [{ groupId: 'g1', mode: 'STRICT', membershipIds: ['a', 'b'] }];
-
-    const shortages = computeShortage({
-      requirements,
-      members,
-      events: [event('e1', '2026-08-02')],
-      intervalRule: null,
-      groups,
-    });
-
-    // "a" is excluded from e1 (their group can't be matched there), leaving 0 candidates.
-    expect(shortages).toEqual([
-      { eventId: 'e1', roleId: 'vocal', quantityNeeded: 1, availableCandidates: 0, missing: 1 },
-    ]);
-  });
-
-  it('ignores FLEXIBLE groups entirely', () => {
-    const requirements: SolverRequirementInput[] = [
-      { eventId: 'e1', roleId: 'vocal', quantity: 1 },
-    ];
-    const members: SolverMemberInput[] = [member('a', ['vocal'], ['e1'])];
-    const groups: SolverGroupInput[] = [{ groupId: 'g1', mode: 'FLEXIBLE', membershipIds: ['a'] }];
-
-    const shortages = computeShortage({
-      requirements,
-      members,
-      events: [event('e1', '2026-08-02')],
-      intervalRule: null,
-      groups,
-    });
-
-    expect(shortages).toEqual([]);
-  });
-
-  it('behaves exactly as before when no groups or events are provided', () => {
-    const requirements: SolverRequirementInput[] = [
-      { eventId: 'e1', roleId: 'vocal', quantity: 1 },
-    ];
-    const members: SolverMemberInput[] = [member('a', ['vocal'], ['e1'])];
-
-    expect(computeShortage({ requirements, members })).toEqual([]);
   });
 });
 

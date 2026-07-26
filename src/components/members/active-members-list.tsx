@@ -20,7 +20,6 @@ type ActiveMember = {
   isAdmin: boolean;
   isPrimaryAdmin: boolean;
   rolePreferences: MemberRolePreferenceItem[];
-  groupName: string | null;
 };
 
 export function ActiveMembersList({
@@ -170,7 +169,6 @@ function MemberDetailsDialog({
             </div>
 
             <Detail label="E-mail" value={member.email} />
-            {member.groupName ? <Detail label="Grupo" value={member.groupName} /> : null}
           </div>
         </div>
 

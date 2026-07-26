@@ -1,6 +1,5 @@
 import {
   DayOfWeek,
-  IntervalCountMode,
   MembershipStatus,
   NotificationType,
   PrismaClient,
@@ -20,7 +19,6 @@ async function main() {
   await prisma.membershipRolePreference.deleteMany();
   await prisma.dayOfWeekRequirement.deleteMany();
   await prisma.priorityRole.deleteMany();
-  await prisma.intervalRule.deleteMany();
   await prisma.participationConfig.deleteMany();
   await prisma.event.deleteMany();
   await prisma.role.deleteMany();
@@ -89,14 +87,6 @@ async function main() {
     data: {
       organizationId: organization.id,
       minimumDays: 4,
-    },
-  });
-
-  await prisma.intervalRule.create({
-    data: {
-      organizationId: organization.id,
-      intervalCount: 1,
-      countMode: IntervalCountMode.BY_EVENT,
     },
   });
 

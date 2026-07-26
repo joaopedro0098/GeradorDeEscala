@@ -5,7 +5,6 @@ import {
   getDayOfWeekFromDateKey,
   normalizeRoleName,
   reorderPriorityRoleIds,
-  validateIntervalCount,
   validateMinimumDays,
   validateQuantity,
 } from '@/modules/scheduling/configuration.logic';
@@ -31,7 +30,6 @@ describe('configuration.logic', () => {
     expect(validateQuantity(2)).toBe(true);
     expect(validateQuantity(-1)).toBe(false);
     expect(validateMinimumDays(4)).toBe(true);
-    expect(validateIntervalCount(1)).toBe(true);
   });
 
   it('reorders priority roles without mutating original list', () => {

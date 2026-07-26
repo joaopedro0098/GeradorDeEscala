@@ -66,10 +66,7 @@ export function ConfigurationTabs({
         ) : null}
 
         {activeTab === 'rules' ? (
-          <ScheduleRulesEditor
-            generalIntervalRule={configuration.generalIntervalRule}
-            participationMinimumDays={configuration.participationMinimumDays}
-          />
+          <ScheduleRulesEditor participationMinimumDays={configuration.participationMinimumDays} />
         ) : null}
       </div>
     </div>

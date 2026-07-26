@@ -7,7 +7,6 @@ import { prisma } from '@/lib/prisma';
 import { getDayOfWeekFromDateKey } from './configuration.logic';
 import {
   buildManualPinnedSlots,
-  buildSolverGroups,
   buildSolverInput,
   expandRequirementsForEvents,
 } from './schedule-builder';
@@ -30,7 +29,7 @@ import {
 } from './schedule.version.logic';
 import { computeShortage } from './shortage-check';
 import { solveSchedule } from './solver.engine';
-import type { SolverEventInput, SolverGroupMode, SolverStatus } from './solver.types';
+import type { SolverEventInput, SolverStatus } from './solver.types';
 
 export class ScheduleServiceError extends Error {
   constructor(message: string) {
@@ -212,7 +211,6 @@ async function loadActiveMembers(organizationId: string, eventIds: string[]) {
     where: { organizationId, status: 'ACTIVE' },
     include: {
       rolePreferences: { select: { roleId: true, sortOrder: true } },
-      roleCombinations: { select: { roleAId: true, roleBId: true } },
       availabilities: { where: { eventId: { in: eventIds } }, select: { eventId: true } },
     },
   });
@@ -221,17 +219,7 @@ async function loadActiveMembers(organizationId: string, eventIds: string[]) {
     membershipId: membership.id,
     availableEventIds: membership.availabilities.map((availability) => availability.eventId),
     rolePreferences: membership.rolePreferences,
-    compatibleRolePairs: membership.roleCombinations.map((combo) => ({
-      roleAId: combo.roleAId,
-      roleBId: combo.roleBId,
-    })),
   }));
-}
-
-async function loadIntervalRule(organizationId: string) {
-  const rule = await prisma.intervalRule.findUnique({ where: { organizationId } });
-  if (!rule) return null;
-  return { intervalCount: rule.intervalCount, countMode: rule.countMode };
 }
 
 async function loadPriorityRoles(organizationId: string) {
@@ -246,23 +234,15 @@ async function loadDayRequirements(organizationId: string) {
   });
 }
 
-async function loadGroups(
-  organizationId: string,
-): Promise<Array<{ id: string; mode: SolverGroupMode; membershipIds: string[] }>> {
-  const groups = await prisma.memberGroup.findMany({
+async function loadRoleCatalog(organizationId: string) {
+  const roles = await prisma.role.findMany({
     where: { organizationId },
-    include: {
-      members: {
-        where: { membership: { status: 'ACTIVE' } },
-        select: { membershipId: true },
-      },
-    },
+    orderBy: { createdAt: 'asc' },
+    select: { id: true, createdAt: true },
   });
-
-  return groups.map((group) => ({
-    id: group.id,
-    mode: group.mode,
-    membershipIds: group.members.map((member) => member.membershipId),
+  return roles.map((role) => ({
+    id: role.id,
+    createdAt: role.createdAt.toISOString(),
   }));
 }
 
@@ -292,17 +272,15 @@ async function buildSchedulingContext(organizationId: string, year: number, mont
   const events = await loadEventsForMonth(organizationId, year, month);
   const eventIds = events.map((event) => event.id);
 
-  const [members, intervalRule, priorityRoles, dayRequirements, groups, priorMonthSlots] =
-    await Promise.all([
-      loadActiveMembers(organizationId, eventIds),
-      loadIntervalRule(organizationId),
-      loadPriorityRoles(organizationId),
-      loadDayRequirements(organizationId),
-      loadGroups(organizationId),
-      loadPriorMonthSlots(organizationId, year, month),
-    ]);
+  const [members, priorityRoles, dayRequirements, roles, priorMonthSlots] = await Promise.all([
+    loadActiveMembers(organizationId, eventIds),
+    loadPriorityRoles(organizationId),
+    loadDayRequirements(organizationId),
+    loadRoleCatalog(organizationId),
+    loadPriorMonthSlots(organizationId, year, month),
+  ]);
 
-  return { events, members, intervalRule, priorityRoles, dayRequirements, groups, priorMonthSlots };
+  return { events, members, priorityRoles, dayRequirements, roles, priorMonthSlots };
 }
 
 type LookupMaps = {
@@ -353,9 +331,6 @@ export async function getPreGenerationShortagePreview(
   const shortages = computeShortage({
     requirements,
     members: context.members,
-    events: context.events,
-    intervalRule: context.intervalRule,
-    groups: buildSolverGroups(context.groups),
   });
 
   if (shortages.length === 0) return [];
@@ -398,10 +373,9 @@ export async function generateSchedule(
     events: context.events,
     dayRequirements: context.dayRequirements,
     members: context.members,
-    intervalRule: context.intervalRule,
     priorityRoles: context.priorityRoles,
+    roles: context.roles,
     priorMonthSlots: context.priorMonthSlots,
-    groups: context.groups,
     pinnedSlots: manualPinnedSlots,
   });
 

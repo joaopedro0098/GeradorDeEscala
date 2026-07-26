@@ -1,75 +1,71 @@
-export type CandidateScoreContext = {
-  /** True when the candidate has only this one role registered at all (4.3). */
-  isExclusive: boolean;
-  /** Position of this role in the candidate's personal preference list (lower = more preferred). */
+export type DisputeCandidateScore = {
+  membershipId: string;
+  /** Preference level for the disputed role (lower = higher preference). */
   preferenceSortOrder: number;
-  /** Occurrences of this specific role for this candidate in the current period. */
+  /** Times this member already has this role in the current month (so far). */
   periodCount: number;
-  /** Occurrences of this specific role for this candidate in the previous period (tie-break). */
+  /** Times this member had this role in the previous month. */
   priorMonthCount: number;
-  /**
-   * True when a fellow member of this candidate's FLEXIBLE group is already
-   * scheduled (any role) at the same event. A weak tie-break only — it never
-   * outranks exclusivity, preference, or current-period equity, and only
-   * breaks ties before the previous-period equity criterion.
-   */
-  hasFlexibleGroupMateScheduled: boolean;
 };
 
 /**
- * Orders candidates for a normal (interval-respecting) slot assignment,
- * following the confirmed 4.3 precedence:
- *   1. Exclusivity — a single-role member outranks a multi-role member.
- *   2. Personal preference — lower sortOrder for this role wins.
- *   3. Equity (current period) — fewer prior occurrences of this role wins.
- *   4. FLEXIBLE member-group affinity — having a group mate already
- *      scheduled at the same event wins, as a soft nudge to keep groups
- *      together (never mandatory, never generates a blank on its own).
- *   5. Equity tie-break (previous period) — fewer prior-period occurrences wins.
+ * Dispute decision chain:
+ *   1. Preference for the disputed role only (lower sortOrder wins).
+ *   2. Current-month equity for that role (fewer wins).
+ *   3. Prior-month equity for that role (fewer wins) — also covers the
+ *      "new person with no history for this role" special case.
+ *   4. Stable hash tie-break (same inputs → same winner).
  */
-export function compareCandidates(a: CandidateScoreContext, b: CandidateScoreContext): number {
-  if (a.isExclusive !== b.isExclusive) return a.isExclusive ? -1 : 1;
+export function compareDisputeCandidates(
+  a: DisputeCandidateScore,
+  b: DisputeCandidateScore,
+  tieBreakKey: string,
+): number {
   if (a.preferenceSortOrder !== b.preferenceSortOrder) {
     return a.preferenceSortOrder - b.preferenceSortOrder;
   }
-  if (a.periodCount !== b.periodCount) return a.periodCount - b.periodCount;
-  if (a.hasFlexibleGroupMateScheduled !== b.hasFlexibleGroupMateScheduled) {
-    return a.hasFlexibleGroupMateScheduled ? -1 : 1;
+  if (a.periodCount !== b.periodCount) {
+    return a.periodCount - b.periodCount;
   }
-  return a.priorMonthCount - b.priorMonthCount;
+  if (a.priorMonthCount !== b.priorMonthCount) {
+    return a.priorMonthCount - b.priorMonthCount;
+  }
+  return compareStableTieBreak(tieBreakKey, a.membershipId, b.membershipId);
+}
+
+/** FNV-1a 32-bit — deterministic across runs/platforms for the same string. */
+export function hashString(value: string): number {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+export function compareStableTieBreak(tieBreakKey: string, aId: string, bId: string): number {
+  const hashA = hashString(`${tieBreakKey}::${aId}`);
+  const hashB = hashString(`${tieBreakKey}::${bId}`);
+  if (hashA !== hashB) return hashA - hashB;
+  return aId.localeCompare(bId);
 }
 
 /**
- * Orders candidates for a relaxed (interval-violating) high-priority
- * fallback assignment (4.2): the only criterion is who has participated
- * least in the current period so far.
+ * PriorityRole.sortOrder first; remaining roles by createdAt (cadastro), then id.
  */
-export function compareRelaxedCandidates(
-  a: { periodCount: number },
-  b: { periodCount: number },
-): number {
-  return a.periodCount - b.periodCount;
-}
+export function buildRoleProcessingOrder(
+  priorityRoles: Array<{ roleId: string; sortOrder: number }>,
+  allRoles: Array<{ id: string; createdAt: string }>,
+): string[] {
+  const ordered = [...priorityRoles]
+    .sort((a, b) => a.sortOrder - b.sortOrder || a.roleId.localeCompare(b.roleId))
+    .map((role) => role.roleId);
 
-export type VariableOrderingContext = {
-  /** Priority rank of the role (lower = more essential), or null when not a priority role. */
-  priorityRank: number | null;
-  /** Size of the statically eligible domain (availability + competency only), for MRV ordering. */
-  domainSize: number;
-  /** Chronological index of the event, used as a stable final tie-break. */
-  eventIndex: number;
-};
+  const seen = new Set(ordered);
+  const rest = allRoles
+    .filter((role) => !seen.has(role.id))
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id))
+    .map((role) => role.id);
 
-/**
- * Orders solver variables (slots to fill) so that:
- *   1. High-priority roles are scheduled first, in their configured order (4.2, surplus scenario).
- *   2. Among equal priority, the most constrained slots (fewest eligible candidates) go first (MRV).
- *   3. Ties are broken chronologically for determinism.
- */
-export function compareVariables(a: VariableOrderingContext, b: VariableOrderingContext): number {
-  const aPriority = a.priorityRank ?? Number.POSITIVE_INFINITY;
-  const bPriority = b.priorityRank ?? Number.POSITIVE_INFINITY;
-  if (aPriority !== bPriority) return aPriority - bPriority;
-  if (a.domainSize !== b.domainSize) return a.domainSize - b.domainSize;
-  return a.eventIndex - b.eventIndex;
+  return [...ordered, ...rest];
 }

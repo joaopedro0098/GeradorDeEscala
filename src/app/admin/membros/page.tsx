@@ -25,7 +25,6 @@ export default async function AdminMembersPage() {
       name: preference.role.name,
       sortOrder: preference.sortOrder,
     })),
-    groupName: membership.groupMembership?.group.name ?? null,
   }));
 
   return (

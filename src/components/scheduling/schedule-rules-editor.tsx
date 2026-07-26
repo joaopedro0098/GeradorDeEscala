@@ -1,24 +1,14 @@
 'use client';
 
-import {
-  saveGeneralIntervalRuleAction,
-  saveParticipationMinimumAction,
-} from '@/modules/scheduling/actions';
+import { saveParticipationMinimumAction } from '@/modules/scheduling/actions';
 import { Alert, Field, PrimaryButton } from '@/components/auth/auth-ui';
 import { useToastActionState } from '@/components/ui/success-toast';
-import {
-  INTERVAL_COUNT_MODE_LABELS,
-  type IntervalRuleSummary,
-} from '@/modules/scheduling/types';
 
 export function ScheduleRulesEditor({
-  generalIntervalRule,
   participationMinimumDays,
 }: {
-  generalIntervalRule: IntervalRuleSummary | null;
   participationMinimumDays: number | null;
 }) {
-  const [generalState, generalAction] = useToastActionState(saveGeneralIntervalRuleAction, {});
   const [participationState, participationAction] = useToastActionState(
     saveParticipationMinimumAction,
     {},
@@ -26,38 +16,6 @@ export function ScheduleRulesEditor({
 
   return (
     <div className="space-y-6">
-      <section className="rounded-2xl border border-zinc-200 bg-white p-6">
-        <h2 className="text-lg font-semibold text-zinc-900">Regra de intervalo (geral)</h2>
-        <form action={generalAction} className="mt-4 space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field
-              label="Intervalo"
-              name="intervalCount"
-              type="number"
-              defaultValue={String(generalIntervalRule?.intervalCount ?? 1)}
-            />
-            <label className="block text-sm font-medium text-zinc-800">
-              Contagem
-              <select
-                name="countMode"
-                defaultValue={generalIntervalRule?.countMode ?? 'BY_EVENT'}
-                className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
-              >
-                {Object.entries(INTERVAL_COUNT_MODE_LABELS).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-          {generalState.error ? <Alert message={generalState.error} tone="error" /> : null}
-          <div>
-            <PrimaryButton label="Salvar regra geral" fullWidth={false} />
-          </div>
-        </form>
-      </section>
-
       <section className="rounded-2xl border border-zinc-200 bg-white p-6">
         <h2 className="text-lg font-semibold text-zinc-900">Mínimo de participação</h2>
         <p className="mt-1 text-sm text-zinc-600">
