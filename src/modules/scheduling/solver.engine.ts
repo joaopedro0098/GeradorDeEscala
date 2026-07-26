@@ -29,32 +29,23 @@ type MutableSlot = {
   filledByManualPin: boolean;
 };
 
-export type SolveScheduleDebug = {
-  /** Slots filled during Phase 2 (zero-assignment fallback / Passo 5). */
-  phase2Filled: Array<{ eventId: string; roleId: string; slotIndex: number; membershipId: string }>;
-};
-
 /**
  * Greedy schedule builder — preference + equity disputes, processed by role
  * across the whole month (not day-by-day CSP).
  *
  * Phase 1: for each role (PriorityRole order, then cadastro), fill every
- * event's slots for that role. Members still at zero assignments only compete
- * on their chronologically first available event; later days are reserved so
- * Phase 2 can place people who lost every dispute on that first day (Passo 5).
- * People who already have an assignment may fill later days only when no
- * zero-assignment member is waiting on that day for the same role.
+ * event's slots for that role using all eligible available candidates.
+ * Disputes use preference → current-month equity → prior-month equity →
+ * stable hash. Losers remain eligible for later roles the same day (Passo 4)
+ * and for later days of the same role via normal Phase 1 equity.
  *
  * Phase 2: members who still have zero assignments try remaining blanks
  * (Passo 5). Same dispute chain among that pool.
  *
- * Passo 6: leftover blanks / people with no slot — status INCOMPLETE_BY_SHORTAGE,
- * never throws / never blocks.
+ * Passo 6: leftover blanks / people with no slot — status INCOMPLETE_BY_SHORTAGE
+ * when slots stay empty; never throws / never blocks.
  */
-export function solveSchedule(
-  input: SolverInput,
-  debug?: { capture?: SolveScheduleDebug },
-): SolverResult {
+export function solveSchedule(input: SolverInput): SolverResult {
   const events = [...input.events].sort((a, b) => a.date.localeCompare(b.date));
   const membersById = new Map(input.members.map((member) => [member.membershipId, member]));
 
@@ -66,12 +57,6 @@ export function solveSchedule(
   const periodCounts = new Map<string, number>();
   const occupiedEvents = new Map<string, Set<string>>();
   const membersWithAnyAssignment = new Set<string>();
-
-  const firstAvailableEventId = new Map<string, string>();
-  for (const member of input.members) {
-    const first = events.find((event) => member.availableEventIds.includes(event.id));
-    if (first) firstAvailableEventId.set(member.membershipId, first.id);
-  }
 
   const slotsByKey = new Map<SlotKey, MutableSlot>();
 
@@ -179,47 +164,18 @@ export function solveSchedule(
       .sort((a, b) => a.slotIndex - b.slotIndex);
   }
 
-  function basicEligible(member: SolverMemberInput, roleId: string, eventId: string): boolean {
-    return (
-      isAvailable(member, eventId) &&
-      preferenceFor(member, roleId) !== null &&
-      !isOccupiedOnEvent(member.membershipId, eventId)
-    );
-  }
-
-  /** Zero-assignment members available later who can still take this role on this event. */
-  function zeroMembersWaitingForPhase2(roleId: string, eventId: string): boolean {
-    return input.members.some((member) => {
-      if (membersWithAnyAssignment.has(member.membershipId)) return false;
-      if (!basicEligible(member, roleId, eventId)) return false;
-      return firstAvailableEventId.get(member.membershipId) !== eventId;
-    });
-  }
-
-  function phase1Pool(roleId: string, eventId: string): SolverMemberInput[] {
-    const zerosWaiting = zeroMembersWaitingForPhase2(roleId, eventId);
-
-    return input.members.filter((member) => {
-      if (!basicEligible(member, roleId, eventId)) return false;
-
-      if (membersWithAnyAssignment.has(member.membershipId)) {
-        // Leave the slot for Phase 2 when a zero member still needs this later day.
-        if (zerosWaiting) return false;
-        return true;
-      }
-
-      // Still zero: only compete on chronologically first available event in Phase 1.
-      return firstAvailableEventId.get(member.membershipId) === eventId;
-    });
-  }
-
-  function candidatesFromPool(
+  function candidatesForRoleEvent(
     roleId: string,
     eventId: string,
     pool: SolverMemberInput[],
   ): string[] {
     return pool
-      .filter((member) => basicEligible(member, roleId, eventId))
+      .filter(
+        (member) =>
+          isAvailable(member, eventId) &&
+          preferenceFor(member, roleId) !== null &&
+          !isOccupiedOnEvent(member.membershipId, eventId),
+      )
       .map((member) => member.membershipId);
   }
 
@@ -227,12 +183,11 @@ export function solveSchedule(
     roleId: string,
     eventId: string,
     pool: SolverMemberInput[],
-    onFill?: (slot: MutableSlot, membershipId: string) => void,
   ): void {
     const blanks = blankSlotsFor(eventId, roleId);
     if (blanks.length === 0) return;
 
-    let remaining = candidatesFromPool(roleId, eventId, pool);
+    let remaining = candidatesForRoleEvent(roleId, eventId, pool);
 
     for (const slot of blanks) {
       if (remaining.length === 0) break;
@@ -245,15 +200,14 @@ export function solveSchedule(
 
       slot.membershipId = winnerId;
       markAssigned(winnerId, eventId, roleId);
-      onFill?.(slot, winnerId);
       remaining = remaining.filter((id) => id !== winnerId);
     }
   }
 
-  // —— Phase 1: by role across the whole month (Passos 0–4) ——
+  // —— Phase 1: by role across the whole month (all eligible candidates) ——
   for (const roleId of processingRoles) {
     for (const event of events) {
-      fillSlotsForRoleEvent(roleId, event.id, phase1Pool(roleId, event.id));
+      fillSlotsForRoleEvent(roleId, event.id, input.members);
     }
   }
 
@@ -264,29 +218,11 @@ export function solveSchedule(
     );
   }
 
-  if (debug?.capture) {
-    debug.capture.phase2Filled = [];
-  }
-
   for (const roleId of processingRoles) {
     for (const event of events) {
       const pool = zeroAssignmentPool();
       if (pool.length === 0) break;
-      fillSlotsForRoleEvent(roleId, event.id, pool, (slot, membershipId) => {
-        debug?.capture?.phase2Filled.push({
-          eventId: slot.eventId,
-          roleId: slot.roleId,
-          slotIndex: slot.slotIndex,
-          membershipId,
-        });
-      });
-    }
-  }
-
-  // —— Mop-up: remaining blanks with anyone eligible (after zeros had priority) ——
-  for (const roleId of processingRoles) {
-    for (const event of events) {
-      fillSlotsForRoleEvent(roleId, event.id, input.members);
+      fillSlotsForRoleEvent(roleId, event.id, pool);
     }
   }
 

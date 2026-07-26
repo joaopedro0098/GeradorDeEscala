@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { solveSchedule, type SolveScheduleDebug } from './solver.engine';
+import { solveSchedule } from './solver.engine';
 import type { SolverMemberInput, SolverResult } from './solver.types';
 
 function member(
@@ -54,23 +54,6 @@ describe('evidence — quantity > 1 + Passo 4', () => {
     const vocal = slotFor(result, 'e1', 'vocal')?.membershipId;
     const drumAssignees = [drums0, drums1];
 
-    // eslint-disable-next-line no-console
-    console.log(
-      JSON.stringify(
-        {
-          scenario: 'qty=2 drums, 3 candidatos; sobra → vocal (Passo 4)',
-          drumsSlot0: drums0,
-          drumsSlot1: drums1,
-          vocalSlot0: vocal,
-          exactlyTwoDrums: drumAssignees.filter(Boolean).length === 2,
-          leftoverIsC: vocal === 'c',
-          status: result.status,
-        },
-        null,
-        2,
-      ),
-    );
-
     expect(drumAssignees.filter(Boolean)).toHaveLength(2);
     expect(new Set(drumAssignees)).toEqual(new Set(['a', 'b']));
     expect(vocal).toBe('c');
@@ -78,41 +61,46 @@ describe('evidence — quantity > 1 + Passo 4', () => {
   });
 });
 
-describe('evidence — Phase 2 Passo 5 + Passo 6', () => {
-  it('Phase 2 reallocates a zero member onto another available day', () => {
-    const capture: SolveScheduleDebug = { phase2Filled: [] };
+describe('evidence — Passo 5 via Phase 1 equity + Passo 6', () => {
+  it('without reservation, loser of e1 gets e2 in Phase 1 via role-layer equity (not via held slots)', () => {
+    // Same inputs that previously relied on Phase 1 reservation + Phase 2 fill.
+    // Without reservation, Phase 1 assigns both days using preference → equity.
+    const result = solveSchedule({
+      events: [
+        { id: 'e1', date: '2026-08-02', dayOfWeek: 'SUNDAY' },
+        { id: 'e2', date: '2026-08-09', dayOfWeek: 'SUNDAY' },
+      ],
+      requirements: [
+        { eventId: 'e1', roleId: 'drums', quantity: 1 },
+        { eventId: 'e2', roleId: 'drums', quantity: 1 },
+      ],
+      members: [
+        member('A', [['drums', 1]], ['e1', 'e2']),
+        member('B', [['drums', 1]], ['e1', 'e2']),
+      ],
+      priorityRoles: [{ roleId: 'drums', sortOrder: 1 }],
+      roles: [{ id: 'drums', createdAt: '2026-01-01T00:00:00.000Z' }],
+      priorMonthAssignments: [{ membershipId: 'A', roleId: 'drums', count: 10 }],
+    });
 
-    // A and B tied on drums pref. A has worse prior-month equity → B wins e1.
-    // A stays at zero after e1; e2 is reserved for Phase 2 (Passo 5).
-    const result = solveSchedule(
-      {
-        events: [
-          { id: 'e1', date: '2026-08-02', dayOfWeek: 'SUNDAY' },
-          { id: 'e2', date: '2026-08-09', dayOfWeek: 'SUNDAY' },
-        ],
-        requirements: [
-          { eventId: 'e1', roleId: 'drums', quantity: 1 },
-          { eventId: 'e2', roleId: 'drums', quantity: 1 },
-        ],
-        members: [
-          member('A', [['drums', 1]], ['e1', 'e2']),
-          member('B', [['drums', 1]], ['e1', 'e2']),
-        ],
-        priorityRoles: [{ roleId: 'drums', sortOrder: 1 }],
-        roles: [{ id: 'drums', createdAt: '2026-01-01T00:00:00.000Z' }],
-        priorMonthAssignments: [{ membershipId: 'A', roleId: 'drums', count: 10 }],
-      },
-      { capture },
-    );
+    const e1 = slotFor(result, 'e1', 'drums')?.membershipId;
+    const e2 = slotFor(result, 'e2', 'drums')?.membershipId;
 
     // eslint-disable-next-line no-console
     console.log(
       JSON.stringify(
         {
-          scenario: 'A perde e1; Fase 2 realoca A em e2 (Passo 5)',
-          e1: slotFor(result, 'e1', 'drums')?.membershipId,
-          e2: slotFor(result, 'e2', 'drums')?.membershipId,
-          phase2Filled: capture.phase2Filled,
+          scenario: 'sem reserva — equidade pura na Fase 1',
+          setup: {
+            preferences: 'A e B empatados em drums sortOrder=1',
+            availability: 'ambos em e1 e e2',
+            priorMonth: 'A.drums=10, B.drums=0 (implícito)',
+            periodAtStart: 'ambos 0',
+          },
+          whyE1: 'preferência empatada; priorMonth A=10 > B=0 → B vence e1',
+          whyE2: 'preferência empatada; periodCount B=1, A=0 → A vence e2',
+          e1Winner: e1,
+          e2Winner: e2,
           status: result.status,
         },
         null,
@@ -120,57 +108,30 @@ describe('evidence — Phase 2 Passo 5 + Passo 6', () => {
       ),
     );
 
-    expect(slotFor(result, 'e1', 'drums')?.membershipId).toBe('B');
-    expect(slotFor(result, 'e2', 'drums')?.membershipId).toBe('A');
-    expect(capture.phase2Filled).toEqual([
-      { eventId: 'e2', roleId: 'drums', slotIndex: 0, membershipId: 'A' },
-    ]);
+    expect(e1).toBe('B');
+    expect(e2).toBe('A');
     expect(result.status).toBe('COMPLETE');
   });
 
   it('Passo 6: person stays unassigned when no slot remains; generation does not hang', () => {
-    const capture: SolveScheduleDebug = { phase2Filled: [] };
-
-    const result = solveSchedule(
-      {
-        events: [{ id: 'e1', date: '2026-08-02', dayOfWeek: 'SUNDAY' }],
-        requirements: [{ eventId: 'e1', roleId: 'drums', quantity: 1 }],
-        members: [
-          member('winner', [['drums', 1]], ['e1']),
-          member('leftOut', [['drums', 1]], ['e1']),
-          // No other day / no other role for leftOut after losing the only slot.
-        ],
-        priorityRoles: [{ roleId: 'drums', sortOrder: 1 }],
-        roles: [{ id: 'drums', createdAt: '2026-01-01T00:00:00.000Z' }],
-        priorMonthAssignments: [{ membershipId: 'leftOut', roleId: 'drums', count: 5 }],
-      },
-      { capture },
-    );
+    const result = solveSchedule({
+      events: [{ id: 'e1', date: '2026-08-02', dayOfWeek: 'SUNDAY' }],
+      requirements: [{ eventId: 'e1', roleId: 'drums', quantity: 1 }],
+      members: [
+        member('winner', [['drums', 1]], ['e1']),
+        member('leftOut', [['drums', 1]], ['e1']),
+      ],
+      priorityRoles: [{ roleId: 'drums', sortOrder: 1 }],
+      roles: [{ id: 'drums', createdAt: '2026-01-01T00:00:00.000Z' }],
+      priorMonthAssignments: [{ membershipId: 'leftOut', roleId: 'drums', count: 5 }],
+    });
 
     const assignedIds = result.slots
       .map((slot) => slot.membershipId)
       .filter((id): id is string => Boolean(id));
 
-    // eslint-disable-next-line no-console
-    console.log(
-      JSON.stringify(
-        {
-          scenario: 'Passo 6 — leftOut sem vaga; processo não trava',
-          winner: slotFor(result, 'e1', 'drums')?.membershipId,
-          assignedIds,
-          leftOutAssigned: assignedIds.includes('leftOut'),
-          phase2Filled: capture.phase2Filled,
-          status: result.status,
-          unfilledSlots: result.unfilledSlots,
-        },
-        null,
-        2,
-      ),
-    );
-
     expect(slotFor(result, 'e1', 'drums')?.membershipId).toBe('winner');
     expect(assignedIds).not.toContain('leftOut');
-    expect(capture.phase2Filled).toEqual([]);
-    expect(result.status).toBe('COMPLETE'); // unique slot filled; person gap is OK
+    expect(result.status).toBe('COMPLETE');
   });
 });
