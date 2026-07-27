@@ -11,7 +11,9 @@ import {
   createTestMemberForOrganization,
   demoteAdmin,
   joinOrganizationWithInviteCode,
+  leaveOrganization,
   listActiveMembers,
+  listDisassociationNotifications,
   listMembershipsForUser,
   listOrganizationRoles,
   listPendingMembers,
@@ -23,6 +25,7 @@ import {
   updateOrganizationProfile,
   updateUserEmail,
   updateUserPassword,
+  updateUserProfile,
 } from '@/modules/auth/auth.service';
 import { ActionState, handleActionError } from '@/modules/auth/action-errors';
 import { resolveDefaultContext, normalizeEmail } from '@/modules/auth/auth-logic';
@@ -36,10 +39,12 @@ import {
   setSessionCookie,
 } from '@/modules/auth/session';
 import {
+  canCreateTeam,
   canEditOrganizationProfile,
   canManageAdminRoles,
   canManageMembers,
   canViewPlans,
+  getAssociatedTeamMembership,
 } from '@/modules/auth/permissions';
 import { prisma } from '@/lib/prisma';
 import { isDeveloperEmail } from '@/lib/developer';
@@ -78,6 +83,11 @@ const updateOrganizationProfileSchema = z.object({
   logoDataUrl: z.string().optional(),
 });
 
+const updateUserProfileSchema = z.object({
+  memberName: z.string().trim().min(2, 'Informe o nome do perfil.'),
+  profilePhotoDataUrl: z.string().optional(),
+});
+
 const joinOrganizationSchema = z.object({
   inviteCode: z.string().trim().min(2, 'Informe o código da organização.'),
 });
@@ -103,6 +113,12 @@ async function completeLoginForUser(userId: string): Promise<string> {
   }
 
   await setSessionCookie(result.payload);
+
+  const associatedMembership = getAssociatedTeamMembership(memberships, result.payload);
+  if (associatedMembership && result.payload.loginMode === 'user') {
+    return '/membro/organizacoes';
+  }
+
   return getDefaultRedirectForLoginMode(result.payload.loginMode);
 }
 
@@ -170,6 +186,13 @@ export async function createOrganizationAction(
       organizationName: formData.get('organizationName'),
     });
 
+    const memberships = await listMembershipsForUser(userId);
+    if (!canCreateTeam(memberships)) {
+      return {
+        error: 'Somente o admin principal pode criar uma equipe. Membros associados não podem criar.',
+      };
+    }
+
     const created = await createOrganizationForAdmin({
       userId,
       organizationName: parsed.organizationName,
@@ -189,7 +212,7 @@ export async function createOrganizationAction(
       revalidatePath('/membro/organizacoes');
       revalidatePath('/admin/conta');
       return {
-        success: `Organização "${created.organizationName}" criada. Ela já aparece na lista — troque quando quiser.`,
+        success: `Equipe "${created.organizationName}" criada. Ela já aparece na lista — troque quando quiser.`,
       };
     }
   } catch (error) {
@@ -214,6 +237,11 @@ export async function joinOrganizationAction(
     const userId = await resolveActingUserId();
     if (!userId) {
       return { error: 'Sessão expirada. Faça login novamente.' };
+    }
+
+    const memberships = await listMembershipsForUser(userId);
+    if (getAssociatedTeamMembership(memberships, session)) {
+      return { error: 'Você já está associado a uma equipe.' };
     }
 
     const parsed = joinOrganizationSchema.parse({
@@ -262,6 +290,45 @@ export async function logoutAction(): Promise<void> {
   await clearSessionCookie();
   await clearPendingLoginCookie();
   redirect('/login');
+}
+
+export async function leaveOrganizationAction(membershipId: string): Promise<void> {
+  const session = await getSessionFromCookies();
+  if (!session) {
+    redirect('/login');
+  }
+
+  await leaveOrganization({
+    membershipId,
+    userId: session.userId,
+  });
+
+  const remaining = await listMembershipsForUser(session.userId);
+  const nextActive = remaining.find((membership) => membership.status === 'ACTIVE');
+
+  if (nextActive) {
+    const loginMode = nextActive.isAdmin ? 'admin' : 'user';
+    const payload = await buildSessionForMembership({
+      userId: session.userId,
+      membershipId: nextActive.id,
+      loginMode,
+    });
+    await setSessionCookie(payload);
+  } else {
+    await clearSessionCookie();
+  }
+
+  revalidatePath('/admin/membros');
+  revalidatePath('/membro/organizacoes');
+  revalidatePath('/admin/organizacoes');
+  redirect('/membro/organizacoes');
+}
+
+    revalidatePath('/admin/membros');
+    return {};
+  } catch (error) {
+    return handleActionError(error);
+  }
 }
 
 export async function approveMemberAction(membershipId: string): Promise<void> {
@@ -333,6 +400,7 @@ export async function markNotificationReadAction(notificationId: string): Promis
   revalidatePath('/admin');
   revalidatePath('/membro/escala');
   revalidatePath('/admin/escala');
+  revalidatePath('/admin/membros');
 }
 
 export async function acceptAdminPromotionAction(notificationId: string): Promise<void> {
@@ -380,10 +448,11 @@ export async function getMembersPageData() {
     return null;
   }
 
-  const [pending, active, roles] = await Promise.all([
+  const [pending, active, roles, disassociations] = await Promise.all([
     listPendingMembers(session.organizationId),
     listActiveMembers(session.organizationId),
     listOrganizationRoles(session.organizationId),
+    listDisassociationNotifications(session.membershipId),
   ]);
 
   return {
@@ -391,6 +460,7 @@ export async function getMembersPageData() {
     pending,
     active,
     roles,
+    disassociations,
   };
 }
 
@@ -526,6 +596,39 @@ export async function updateOrganizationProfileAction(
   }
 }
 
+export async function updateUserProfileAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  try {
+    const userId = await resolveActingUserId();
+    if (!userId) {
+      return { error: 'Sessão expirada. Faça login novamente.' };
+    }
+
+    const photoRaw = String(formData.get('profilePhotoDataUrl') ?? '').trim();
+    const parsed = updateUserProfileSchema.parse({
+      memberName: formData.get('memberName'),
+      profilePhotoDataUrl: photoRaw || undefined,
+    });
+
+    await updateUserProfile({
+      userId,
+      name: parsed.memberName,
+      profilePhotoDataUrl: parsed.profilePhotoDataUrl,
+    });
+
+    revalidatePath('/admin');
+    revalidatePath('/membro');
+    revalidatePath('/admin/membros');
+    revalidatePath('/admin/escala');
+    revalidatePath('/membro/conta');
+    return { success: 'Perfil atualizado.' };
+  } catch (error) {
+    return handleActionError(error);
+  }
+}
+
 export async function getAccountPageData() {
   const session = await getSessionFromCookies();
   const pending = await getPendingLoginFromCookies();
@@ -535,7 +638,7 @@ export async function getAccountPageData() {
 
   const user = await prisma.user.findUniqueOrThrow({
     where: { id: userId },
-    select: { email: true, name: true },
+    select: { email: true, name: true, profilePhotoUrl: true },
   });
 
   const showPlans = session ? canViewPlans(session) : false;
@@ -605,7 +708,7 @@ export async function createTestMemberAction(
     return {
       success: created.createdUser
         ? `Membro ${created.email} criado e ativo em "${session.organizationName}".`
-        : `Conta existente vinculada como membro ativo em "${session.organizationName}".`,
+        : `Conta ${created.email} atualizada e vinculada como membro ativo em "${session.organizationName}".`,
     };
   } catch (error) {
     return handleActionError(error);

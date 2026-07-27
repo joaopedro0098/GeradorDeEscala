@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, useTransition } from 'react';
 import { MoreHorizontal, Search, X } from 'lucide-react';
 import { demoteAdminAction, promoteMemberAction } from '@/modules/auth/actions';
 import { RemoveMemberButton } from '@/components/members/remove-member-button';
+import { MemberAvatar } from '@/components/members/member-avatar';
 import {
   MemberRolePreferencesEditor,
   type MemberRolePreferenceItem,
@@ -17,6 +18,7 @@ type ActiveMember = {
   id: string;
   name: string;
   email: string;
+  profilePhotoUrl: string | null;
   isAdmin: boolean;
   isPrimaryAdmin: boolean;
   rolePreferences: MemberRolePreferenceItem[];
@@ -55,6 +57,7 @@ export function ActiveMembersList({
               aria-label={`Ver detalhes de ${member.name}`}
             >
               <span className="flex min-w-0 items-center gap-2 py-0.5">
+                <MemberAvatar name={member.name} photoUrl={member.profilePhotoUrl} />
                 <span className="truncate text-sm font-medium text-zinc-900">{member.name}</span>
                 {member.isPrimaryAdmin || member.isAdmin ? (
                   <span className="shrink-0 text-xs text-zinc-400">

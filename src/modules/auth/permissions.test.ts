@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
+  canCreateTeam,
   canManageAdminRoles,
   canManageMembers,
   canViewPlans,
+  getAssociatedTeamMembership,
   toSessionPayload,
 } from '@/modules/auth/permissions';
 import type { MembershipSummary } from '@/modules/auth/types';
@@ -42,5 +44,15 @@ describe('permissions', () => {
       loginMode: 'admin',
       isAdmin: true,
     });
+  });
+
+  it('detects associated team membership for existing active members', () => {
+    const joined = membership({ id: 'joined', organizationName: 'Louvor Jaboque' });
+    expect(getAssociatedTeamMembership([joined], null)).toEqual(joined);
+  });
+
+  it('blocks team creation for associated members', () => {
+    expect(canCreateTeam([membership()])).toBe(false);
+    expect(canCreateTeam([membership({ isPrimaryAdmin: true })])).toBe(true);
   });
 });

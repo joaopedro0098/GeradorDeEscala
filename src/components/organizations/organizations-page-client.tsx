@@ -2,8 +2,10 @@
 
 import { CreateOrganizationForm } from '@/components/account/create-organization-form';
 import { OrganizationProfileForm } from '@/components/account/organization-profile-form';
+import { SelfLeaveOrganizationButton } from '@/components/organizations/self-leave-organization-button';
 import { joinOrganizationAction, switchContextAction, type ActionState } from '@/modules/auth/actions';
-import { Alert, Field, PrimaryButton } from '@/components/auth/auth-ui';
+import { canCreateTeam, getAssociatedTeamMembership } from '@/modules/auth/permissions';
+import { Alert, Field } from '@/components/auth/auth-ui';
 import { GlassCard } from '@/components/ui/glass-card';
 import { useToastActionState } from '@/components/ui/success-toast';
 import type { MembershipSummary, SessionPayload } from '@/modules/auth/types';
@@ -98,7 +100,7 @@ function JoinOrganizationPanel() {
   const [state, formAction] = useToastActionState<ActionState>(joinOrganizationAction, {});
 
   return (
-    <GlassCard className="glass-card p-5">
+    <div>
       <h3 className="font-display text-sm font-semibold text-[var(--text-primary)]">Entrar com código</h3>
       <p className="mt-1 text-xs text-[var(--text-secondary)]">
         Use o código de convite. A entrada fica pendente até um administrador aprovar.
@@ -106,7 +108,12 @@ function JoinOrganizationPanel() {
       <form action={formAction} className="mt-4 space-y-3">
         <Field label="Código da organização" name="inviteCode" />
         <div>
-          <PrimaryButton label="Solicitar entrada" fullWidth={false} />
+          <button
+            type="submit"
+            className="btn-solid rounded-lg px-4 py-2.5 text-sm font-medium"
+          >
+            Solicitar entrada
+          </button>
         </div>
       </form>
       {state.error ? (
@@ -114,8 +121,15 @@ function JoinOrganizationPanel() {
           <Alert message={state.error} tone="error" />
         </div>
       ) : null}
-    </GlassCard>
+    </div>
   );
+}
+
+function getJoinedTeamMembership(
+  memberships: MembershipSummary[],
+  session: SessionPayload | null,
+): MembershipSummary | null {
+  return getAssociatedTeamMembership(memberships, session);
 }
 
 export function OrganizationsPageClient({
@@ -134,6 +148,24 @@ export function OrganizationsPageClient({
   const isFirstOrganization =
     !session && !memberships.some((membership) => membership.status === 'ACTIVE');
   const isAdminArea = area === 'admin';
+  const showCreateTeam = canCreateTeam(memberships);
+  const joinedTeamMembership = getJoinedTeamMembership(memberships, session);
+  const showJoinedTeamView = !isAdminArea && joinedTeamMembership !== null;
+  const canJoinTeam = joinedTeamMembership === null;
+
+  if (showJoinedTeamView) {
+    return (
+      <GlassCard className="glass-card p-6">
+        <p className="text-sm text-[var(--text-primary)]">
+          Você está associado a:{' '}
+          <span className="font-semibold">{joinedTeamMembership.organizationName}</span>
+        </p>
+        <div className="mt-4">
+          <SelfLeaveOrganizationButton membershipId={joinedTeamMembership.id} />
+        </div>
+      </GlassCard>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -150,7 +182,7 @@ export function OrganizationsPageClient({
             Suas organizações
           </h2>
           <p className="mt-1 text-sm text-[var(--text-secondary)]">
-            Troque de contexto no estilo perfil. Criar uma nova organização não troca automaticamente.
+            Troque de contexto no estilo perfil. Criar uma nova equipe não troca automaticamente.
           </p>
         </div>
         <div className="mt-4">
@@ -159,12 +191,12 @@ export function OrganizationsPageClient({
             currentMembershipId={session?.membershipId}
             emptyHint={
               isAdminArea
-                ? 'Nenhuma organização ainda. Use Criar organização para começar.'
-                : 'Nenhuma participação ainda. Crie uma organização ou entre com um código de convite.'
+                ? 'Nenhuma organização ainda. Use Criar equipe para começar.'
+                : 'Nenhuma participação ainda. Crie uma equipe ou entre com um código de convite.'
             }
           />
         </div>
-        {isAdminArea ? (
+        {isAdminArea && showCreateTeam ? (
           <div className="mt-4 flex justify-start">
             <CreateOrganizationForm isFirstOrganization={isFirstOrganization} />
           </div>
@@ -172,10 +204,12 @@ export function OrganizationsPageClient({
       </GlassCard>
 
       {!isAdminArea ? (
-        <>
-          <CreateOrganizationForm isFirstOrganization={isFirstOrganization} />
-          <JoinOrganizationPanel />
-        </>
+        <GlassCard className="glass-card p-5">
+          <div className="space-y-6">
+            {showCreateTeam ? <CreateOrganizationForm isFirstOrganization={isFirstOrganization} /> : null}
+            {canJoinTeam ? <JoinOrganizationPanel /> : null}
+          </div>
+        </GlassCard>
       ) : null}
     </div>
   );

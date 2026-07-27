@@ -207,6 +207,7 @@ describe('countAssignmentsByMember', () => {
       {
         membershipId: 'mem-1',
         memberName: 'João',
+        profilePhotoUrl: null,
         total: 3,
         byRole: [
           { roleId: 'role-guitar', roleName: 'Violão', count: 2 },
@@ -216,6 +217,7 @@ describe('countAssignmentsByMember', () => {
       {
         membershipId: 'mem-2',
         memberName: 'Ana',
+        profilePhotoUrl: null,
         total: 1,
         byRole: [{ roleId: 'role-drums', roleName: 'Bateria', count: 1 }],
       },

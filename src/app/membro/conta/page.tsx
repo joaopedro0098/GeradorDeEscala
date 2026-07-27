@@ -6,5 +6,13 @@ export default async function MemberAccountPage() {
   const data = await getAccountPageData();
   if (!data) redirect('/login');
 
-  return <AccountSettingsForms email={data.user.email} />;
+  return (
+    <AccountSettingsForms
+      email={data.user.email}
+      memberProfile={{
+        name: data.user.name,
+        profilePhotoUrl: data.user.profilePhotoUrl,
+      }}
+    />
+  );
 }

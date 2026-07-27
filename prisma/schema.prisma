@@ -41,6 +41,7 @@ enum NotificationType {
   ADMIN_PROMOTED
   MEMBERSHIP_APPROVED
   MEMBERSHIP_REJECTED
+  MEMBER_DISASSOCIATED
 }
 
 enum PlanTier {
@@ -56,13 +57,14 @@ enum SubscriptionStatus {
 }
 
 model User {
-  id           String       @id @default(cuid())
-  email        String       @unique
-  passwordHash String
-  name         String
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
-  memberships  Membership[]
+  id              String       @id @default(cuid())
+  email           String       @unique
+  passwordHash    String
+  name            String
+  profilePhotoUrl String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  memberships     Membership[]
 }
 
 model Organization {

@@ -32,6 +32,7 @@ describe('Prisma schema enums', () => {
     expect(NotificationType.ADMIN_PROMOTED).toBe('ADMIN_PROMOTED');
     expect(NotificationType.MEMBERSHIP_APPROVED).toBe('MEMBERSHIP_APPROVED');
     expect(NotificationType.MEMBERSHIP_REJECTED).toBe('MEMBERSHIP_REJECTED');
+    expect(NotificationType.MEMBER_DISASSOCIATED).toBe('MEMBER_DISASSOCIATED');
   });
 
   it('exports organization plan tiers', () => {

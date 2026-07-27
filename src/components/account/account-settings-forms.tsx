@@ -1,11 +1,18 @@
 'use client';
 
+import { MemberProfileForm } from '@/components/account/member-profile-form';
 import { updateEmailAction, updatePasswordAction, type ActionState } from '@/modules/auth/actions';
 import { Alert, Field, PrimaryButton } from '@/components/auth/auth-ui';
 import { GlassCard } from '@/components/ui/glass-card';
 import { useToastActionState } from '@/components/ui/success-toast';
 
-export function AccountSettingsForms({ email }: { email: string }) {
+export function AccountSettingsForms({
+  email,
+  memberProfile = null,
+}: {
+  email: string;
+  memberProfile?: { name: string; profilePhotoUrl: string | null } | null;
+}) {
   const [emailState, emailAction] = useToastActionState<ActionState>(updateEmailAction, {});
   const [passwordState, passwordAction] = useToastActionState<ActionState>(
     updatePasswordAction,
@@ -14,6 +21,13 @@ export function AccountSettingsForms({ email }: { email: string }) {
 
   return (
     <div className="space-y-6">
+      {memberProfile ? (
+        <MemberProfileForm
+          memberName={memberProfile.name}
+          profilePhotoUrl={memberProfile.profilePhotoUrl}
+        />
+      ) : null}
+
       <GlassCard className="glass-card p-6">
         <h2 className="font-display text-lg font-semibold text-[var(--text-primary)]">Alterar e-mail</h2>
         <form action={emailAction} className="mt-4 space-y-3">

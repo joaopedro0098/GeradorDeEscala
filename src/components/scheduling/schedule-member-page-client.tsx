@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import { ScheduleMemberView } from '@/components/scheduling/schedule-member-view';
-import { OfflineScheduleBanner } from '@/components/scheduling/offline-schedule-banner';
 import {
   resolveOfflineScheduleView,
   saveLastScheduleView,
@@ -83,27 +82,15 @@ export function ScheduleMemberPageClient({
     isCached && resolved.cachedYear !== viewedMonth.year ? null : initialSelectedDate;
 
   return (
-    <div className="space-y-4">
-      <OfflineScheduleBanner
-        mode={resolved.mode}
-        cachedAt={resolved.cachedAt}
-        cachedYear={resolved.cachedYear}
-        cachedMonth={resolved.cachedMonth}
-        requestedYear={viewedMonth.year}
-        requestedMonth={viewedMonth.month}
-      />
-      {resolved.mode === 'unavailable' ? null : (
-        <ScheduleMemberView
-          workingMonth={workingMonth}
-          viewedMonth={displayMonth}
-          isHistory={isHistory}
-          historyMonths={historyMonths}
-          initialSelectedDate={displaySelectedDate}
-          overview={resolved.overview}
-          readOnly={isCached}
-          isOffline={isCached}
-        />
-      )}
-    </div>
+    <ScheduleMemberView
+      workingMonth={workingMonth}
+      viewedMonth={displayMonth}
+      isHistory={isHistory}
+      historyMonths={historyMonths}
+      initialSelectedDate={displaySelectedDate}
+      overview={resolved.overview}
+      readOnly={isCached}
+      isOffline={isCached}
+    />
   );
 }

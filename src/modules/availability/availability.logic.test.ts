@@ -1,7 +1,27 @@
 import { describe, expect, it } from 'vitest';
-import { buildSubmitConfirmation } from '@/modules/availability/availability.logic';
+import {
+  buildSubmitConfirmation,
+  evaluateParticipationStatus,
+} from '@/modules/availability/availability.logic';
 
 describe('availability.logic', () => {
+  describe('evaluateParticipationStatus', () => {
+    it('classifies below, exact and above relative to the minimum', () => {
+      expect(evaluateParticipationStatus(2, 3)).toBe('below');
+      expect(evaluateParticipationStatus(3, 3)).toBe('exact');
+      expect(evaluateParticipationStatus(5, 3)).toBe('above');
+    });
+
+    it('treats zero marked days as below when minimum is positive', () => {
+      expect(evaluateParticipationStatus(0, 3)).toBe('below');
+    });
+
+    it('treats zero marked days as exact when minimum is zero', () => {
+      expect(evaluateParticipationStatus(0, 0)).toBe('exact');
+      expect(evaluateParticipationStatus(1, 0)).toBe('above');
+    });
+  });
+
   describe('buildSubmitConfirmation', () => {
     it('shows below-minimum warning with exact spec wording', () => {
       const confirmation = buildSubmitConfirmation(2, 4);

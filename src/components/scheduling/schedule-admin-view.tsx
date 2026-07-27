@@ -5,6 +5,10 @@ import { useRouter } from 'next/navigation';
 import { MonthHistorySelect } from '@/components/scheduling/month-history-select';
 import { showSuccessToast } from '@/components/ui/success-toast';
 import {
+  type MemberParticipationSummary,
+  type ParticipationStatus,
+} from '@/modules/availability/availability.logic';
+import {
   generateScheduleAction,
   publishScheduleAction,
   setAvailabilityLockedAction,
@@ -18,17 +22,12 @@ import {
   type ScheduleSlotView,
   type ShortageEntryView,
 } from '@/modules/scheduling/schedule.types';
+import { MemberAvatar } from '@/components/members/member-avatar';
+import { truncateByWords } from '@/lib/truncate-by-words';
 import { DAY_OF_WEEK_LABELS } from '@/modules/scheduling/types';
 import { formatYearMonth, type YearMonth } from '@/modules/scheduling/working-month.logic';
 
-function formatDate(dateKey: string): string {
-  const [year, month, day] = dateKey.split('-').map(Number);
-  return new Intl.DateTimeFormat('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-    timeZone: 'UTC',
-  }).format(new Date(Date.UTC(year, month - 1, day)));
-}
+const SCHEDULE_NAME_MAX_LENGTH = 14;
 
 function dayNumber(dateKey: string): number {
   return Number(dateKey.split('-')[2]);
@@ -36,13 +35,68 @@ function dayNumber(dateKey: string): number {
 
 type DialogKind = 'shortage' | 'manual' | null;
 
-type ScheduleViewFilter = 'escala' | 'pendencias' | 'frequencia';
+type ScheduleViewFilter = 'escala' | 'status';
 
 const SCHEDULE_VIEW_FILTERS: Array<{ id: ScheduleViewFilter; label: string }> = [
   { id: 'escala', label: 'Escala' },
-  { id: 'pendencias', label: 'Pendências' },
-  { id: 'frequencia', label: 'Frequência' },
+  { id: 'status', label: 'Status & Frequência' },
 ];
+
+const STATUS_FILTERS: Array<{
+  id: ParticipationStatus;
+  label: string;
+  idleClass: string;
+  activeClass: string;
+}> = [
+  {
+    id: 'exact',
+    label: 'Dentro',
+    idleClass: 'border-zinc-300/60 bg-zinc-500/15 text-zinc-700',
+    activeClass: 'border-zinc-400 bg-zinc-500/35 text-zinc-900 ring-1 ring-zinc-400/50',
+  },
+  {
+    id: 'below',
+    label: 'Abaixo',
+    idleClass: 'border-red-300/60 bg-red-500/15 text-red-800',
+    activeClass: 'border-red-400 bg-red-500/35 text-red-950 ring-1 ring-red-400/50',
+  },
+  {
+    id: 'above',
+    label: 'Acima',
+    idleClass:
+      'border-[rgba(34,180,60,0.45)] bg-[rgba(34,180,60,0.18)] text-[#15803d]',
+    activeClass:
+      'border-[rgba(34,180,60,0.7)] bg-[rgba(34,180,60,0.38)] text-[#14532d] ring-1 ring-[rgba(34,180,60,0.45)]',
+  },
+];
+
+function formatMemberFrequency(member: {
+  total: number;
+  byRole: Array<{ roleName: string; count: number }>;
+}): string {
+  if (member.byRole.length === 1) {
+    const role = member.byRole[0];
+    return `${role.count}X ${role.roleName}`;
+  }
+  const roles = member.byRole.map((role) => `${role.count}x ${role.roleName}`).join(', ');
+  return `${roles} = ${member.total}`;
+}
+
+function HelpHint({ text }: { text: string }) {
+  return (
+    <span className="group/hint absolute top-6 right-6 z-10">
+      <span className="flex h-6 w-6 cursor-default items-center justify-center rounded-full border border-zinc-300 text-sm font-normal leading-none text-zinc-400 transition-colors hover:border-zinc-400 hover:text-zinc-500">
+        ?
+      </span>
+      <span
+        role="tooltip"
+        className="pointer-events-none absolute top-full right-0 z-20 mt-2 hidden w-64 rounded-lg border border-zinc-200 bg-white px-3.5 py-2.5 text-left text-sm font-normal leading-snug text-zinc-600 shadow-md group-hover/hint:block"
+      >
+        {text}
+      </span>
+    </span>
+  );
+}
 
 type SlotPickerState = {
   slotId: string;
@@ -67,6 +121,7 @@ export function ScheduleAdminView({
   overview,
   shortagePreview,
   assignmentCandidates,
+  participationSummaries = [],
   availabilityLocked = false,
   readOnly = false,
   isOffline = false,
@@ -78,6 +133,7 @@ export function ScheduleAdminView({
   overview: ScheduleOverview | null;
   shortagePreview: ShortageEntryView[];
   assignmentCandidates: ScheduleAssignmentCandidate[];
+  participationSummaries?: MemberParticipationSummary[];
   /** When true, availability table is locked for members. */
   availabilityLocked?: boolean;
   readOnly?: boolean;
@@ -89,6 +145,7 @@ export function ScheduleAdminView({
   const [error, setError] = useState<string | null>(null);
   const [tableLocked, setTableLocked] = useState(availabilityLocked);
   const [viewFilter, setViewFilter] = useState<ScheduleViewFilter>('escala');
+  const [statusFilter, setStatusFilter] = useState<ParticipationStatus>('exact');
   const [slotPicker, setSlotPicker] = useState<SlotPickerState | null>(null);
   const [pickerQuery, setPickerQuery] = useState('');
   const [pendingReplace, setPendingReplace] = useState<PendingReplaceState | null>(null);
@@ -115,6 +172,10 @@ export function ScheduleAdminView({
   }, [slotPicker]);
 
   const matrix = buildScheduleMatrix(overview?.events ?? []);
+  const minimumDays = participationSummaries[0]?.minimumDays ?? 0;
+  const filteredParticipation = participationSummaries.filter(
+    (summary) => summary.status === statusFilter,
+  );
 
   function eligibleForSlot(eventId: string, roleId: string): ScheduleAssignmentCandidate[] {
     return assignmentCandidates.filter(
@@ -411,57 +472,97 @@ export function ScheduleAdminView({
         ))}
       </div>
 
-      {viewFilter === 'pendencias' ? (
-        <section className="rounded-2xl border border-zinc-200 bg-white p-6">
-          <h3 className="text-sm font-semibold text-zinc-900">
-            Vagas sem cobertura suficiente neste período
-          </h3>
-          {shortagePreview.length > 0 ? (
-            <ul className="mt-3 space-y-2 text-sm text-zinc-700">
-              {shortagePreview.map((entry) => (
-                <li
-                  key={`${entry.eventId}-${entry.roleId}`}
-                  className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-amber-900"
-                >
-                  {formatDate(entry.eventDate)} — {entry.roleName}: faltam {entry.missing} pessoa(s) (
-                  {entry.availableCandidates}/{entry.quantityNeeded} disponíveis)
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="mt-3 text-sm text-zinc-600">
-              Nenhuma pendência de cobertura neste período.
-            </p>
-          )}
-        </section>
-      ) : null}
+      {viewFilter === 'status' ? (
+        <div className="flex flex-nowrap gap-4">
+          <section className="relative min-w-0 flex-1 rounded-2xl border border-zinc-200 bg-white p-6">
+            <HelpHint text="Aqui é contabilizado o número total que o membro marcou na planilha de disponibilidade" />
+            <div>
+              <h3 className="text-sm font-semibold text-zinc-900">Status de participação</h3>
+              <p className="mt-1 text-sm text-zinc-600">
+                Mínimo {minimumDays} {minimumDays === 1 ? 'dia' : 'dias'}
+              </p>
+            </div>
 
-      {viewFilter === 'frequencia' ? (
-        <section className="rounded-2xl border border-zinc-200 bg-white p-6">
-          <h3 className="text-sm font-semibold text-zinc-900">Contagem de escalações no período</h3>
-          {!overview ? (
-            <p className="mt-3 text-sm text-zinc-600">
-              Gere a escala para ver a frequência de escalações.
-            </p>
-          ) : overview.memberCounts.length === 0 ? (
-            <p className="mt-3 text-sm text-zinc-500">Ninguém foi escalado ainda neste período.</p>
-          ) : (
-            <ul className="mt-4 space-y-2">
-              {overview.memberCounts.map((member) => (
-                <li
-                  key={member.membershipId}
-                  className="rounded-lg border border-zinc-100 px-4 py-2 text-sm"
-                >
-                  <span className="font-medium text-zinc-900">{member.memberName}</span>
-                  <span className="text-zinc-600">
-                    : {member.total} no total —{' '}
-                    {member.byRole.map((role) => `${role.count}x ${role.roleName}`).join(', ')}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {STATUS_FILTERS.map((filter) => {
+                const isActive = statusFilter === filter.id;
+                return (
+                  <button
+                    key={filter.id}
+                    type="button"
+                    onClick={() => setStatusFilter(filter.id)}
+                    className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                      isActive ? filter.activeClass : filter.idleClass
+                    }`}
+                  >
+                    {filter.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {filteredParticipation.length > 0 ? (
+              <ul className="mt-4 divide-y divide-zinc-100">
+                {filteredParticipation.map((summary) => (
+                  <li
+                    key={summary.membershipId}
+                    className="flex items-center justify-between gap-3 py-2.5 text-sm"
+                  >
+                    <span className="flex min-w-0 items-center gap-2">
+                      <MemberAvatar
+                        name={summary.memberName}
+                        photoUrl={summary.profilePhotoUrl}
+                      />
+                      <span className="truncate font-medium text-zinc-900">{summary.memberName}</span>
+                    </span>
+                    <span className="shrink-0 tabular-nums text-zinc-600">
+                      {summary.markedDays}{' '}
+                      {summary.markedDays === 0 || summary.markedDays === 1 ? 'dia' : 'dias'}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-4 text-sm text-zinc-600">
+                Nenhuma pessoa neste filtro no período.
+              </p>
+            )}
+          </section>
+
+          <section className="relative min-w-0 flex-1 rounded-2xl border border-zinc-200 bg-white p-6">
+            <HelpHint text="Aqui é contabilizado a quantidade real de vezes que o membro foi escalado(a)" />
+            <h3 className="text-sm font-semibold text-zinc-900">Frequência na escala</h3>
+            {!overview ? (
+              <p className="mt-3 text-sm text-zinc-600">
+                Gere a escala para ver a frequência de escalações.
+              </p>
+            ) : overview.memberCounts.length === 0 ? (
+              <p className="mt-3 text-sm text-zinc-500">Ninguém foi escalado ainda neste período.</p>
+            ) : (
+              <ul className="mt-4 space-y-2">
+                {overview.memberCounts.map((member) => (
+                  <li
+                    key={member.membershipId}
+                    className="rounded-lg border border-zinc-100 px-4 py-2 text-sm"
+                  >
+                    <div className="flex items-start gap-2">
+                      <MemberAvatar
+                        name={member.memberName}
+                        photoUrl={member.profilePhotoUrl}
+                      />
+                      <div className="min-w-0">
+                        <span className="font-medium text-zinc-900">{member.memberName}</span>
+                        <span className="mt-0.5 block text-zinc-600">
+                          {formatMemberFrequency(member)}
+                        </span>
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        </div>
       ) : null}
 
       {viewFilter === 'escala' ? (
@@ -537,16 +638,20 @@ export function ScheduleAdminView({
                             ) : (
                               <div className="flex min-h-5 flex-col justify-center space-y-0.5">
                                 {cell.slots.map((slot) => {
-                                  const label = slot.memberName?.trim() || 'vazio';
                                   const isEmpty = !slot.membershipId;
+                                  const fullLabel = slot.memberName?.trim() || 'vazio';
+                                  const label = isEmpty
+                                    ? fullLabel
+                                    : truncateByWords(fullLabel, SCHEDULE_NAME_MAX_LENGTH);
                                   return (
                                     <div
                                       key={slot.id}
-                                      className="relative flex min-h-5 items-center justify-center px-0.5 py-0 pr-3"
+                                      className="relative flex min-h-5 items-center justify-center overflow-hidden px-0.5 py-0 pr-3"
                                     >
                                       {readOnly ? (
                                         <span
-                                          className={`block w-full break-words whitespace-normal leading-5 ${
+                                          title={fullLabel}
+                                          className={`block w-full overflow-hidden text-ellipsis whitespace-nowrap leading-5 ${
                                             isEmpty ? 'italic text-zinc-400' : 'text-zinc-900'
                                           }`}
                                         >
@@ -556,11 +661,12 @@ export function ScheduleAdminView({
                                         <button
                                           type="button"
                                           disabled={isPending}
+                                          title={fullLabel}
                                           onClick={() => {
                                             if (wasTableDragged()) return;
                                             openSlotPicker(slot, row.eventId);
                                           }}
-                                          className={`block w-full rounded px-0.5 py-0 text-center leading-5 break-words whitespace-normal hover:bg-zinc-100 disabled:opacity-60 ${
+                                          className={`block w-full overflow-hidden text-ellipsis whitespace-nowrap rounded px-0.5 py-0 text-center leading-5 hover:bg-zinc-100 disabled:opacity-60 ${
                                             isEmpty ? 'italic text-zinc-400' : 'text-zinc-900'
                                           }`}
                                         >

@@ -22,6 +22,7 @@ export type ScheduleEventView = {
 export type MemberAssignmentCount = {
   membershipId: string;
   memberName: string;
+  profilePhotoUrl: string | null;
   total: number;
   byRole: Array<{ roleId: string; roleName: string; count: number }>;
 };

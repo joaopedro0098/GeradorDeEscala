@@ -31,7 +31,7 @@ type NavItem = {
 function buildAdminNav(context: AppShellContext): NavItem[] {
   if (!context.session) {
     return [
-      { href: '/admin/organizacoes', label: 'Organizações', icon: <Building2 className="h-4 w-4" /> },
+      { href: '/admin/organizacoes', label: 'Equipe', icon: <Building2 className="h-4 w-4" /> },
       { href: '/admin/conta', label: 'Conta', icon: <UserRound className="h-4 w-4" /> },
     ];
   }
@@ -41,7 +41,7 @@ function buildAdminNav(context: AppShellContext): NavItem[] {
     { href: '/admin/configuracoes', label: 'Configurações', icon: <Settings className="h-4 w-4" /> },
     { href: '/admin/membros', label: 'Membros', icon: <Users className="h-4 w-4" /> },
     { href: '/admin/eventos', label: 'Eventos', icon: <CalendarRange className="h-4 w-4" /> },
-    { href: '/admin/organizacoes', label: 'Organizações', icon: <Building2 className="h-4 w-4" /> },
+    { href: '/admin/organizacoes', label: 'Equipe', icon: <Building2 className="h-4 w-4" /> },
     { href: '/admin/conta', label: 'Conta', icon: <UserRound className="h-4 w-4" /> },
     ...(context.isDeveloper
       ? [
@@ -63,7 +63,7 @@ function buildMemberNav(): NavItem[] {
       label: 'Disponibilidade',
       icon: <CalendarDays className="h-4 w-4" />,
     },
-    { href: '/membro/organizacoes', label: 'Organizações', icon: <Building2 className="h-4 w-4" /> },
+    { href: '/membro/organizacoes', label: 'Equipe', icon: <Building2 className="h-4 w-4" /> },
     { href: '/membro/conta', label: 'Conta', icon: <UserRound className="h-4 w-4" /> },
   ];
 }

@@ -17,7 +17,8 @@ export function CreateTestMemberForm({ organizationName }: { organizationName: s
       <p className="mt-1 text-sm text-[var(--text-secondary)]">
         Área só do desenvolvedor. Criar membros de teste na organização atual:{' '}
         <span className="font-medium text-[var(--text-primary)]">{organizationName}</span>.
-        O membro nasce ativo e é tratado como membro normal.
+        O membro nasce ativo, entra pelo login com este e-mail e senha, e é tratado como membro normal.
+        Se o e-mail já existir, a senha informada aqui passa a valer no login.
       </p>
 
       <form action={action} className="mt-5 space-y-3">

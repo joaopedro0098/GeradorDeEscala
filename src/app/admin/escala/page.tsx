@@ -24,6 +24,7 @@ export default async function AdminSchedulePage({ searchParams }: PageProps) {
       serverOverview={data.overview}
       shortagePreview={data.shortagePreview}
       assignmentCandidates={data.assignmentCandidates}
+      participationSummaries={data.participationSummaries}
       availabilityLocked={data.availabilityLocked}
     />
   );

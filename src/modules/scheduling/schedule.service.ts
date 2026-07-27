@@ -287,6 +287,7 @@ type LookupMaps = {
   roleNameById: Map<string, string>;
   eventById: Map<string, { id: string; date: Date }>;
   memberNameById: Map<string, string>;
+  memberProfilePhotoById: Map<string, string | null>;
 };
 
 async function buildLookupMaps(organizationId: string, slotRows: WorkingSlot[]): Promise<LookupMaps> {
@@ -308,7 +309,7 @@ async function buildLookupMaps(organizationId: string, slotRows: WorkingSlot[]):
     membershipIds.length > 0
       ? prisma.membership.findMany({
           where: { id: { in: membershipIds } },
-          include: { user: { select: { name: true } } },
+          include: { user: { select: { name: true, profilePhotoUrl: true } } },
         })
       : Promise.resolve([]),
   ]);
@@ -317,6 +318,9 @@ async function buildLookupMaps(organizationId: string, slotRows: WorkingSlot[]):
     roleNameById: new Map(roles.map((role) => [role.id, role.name])),
     eventById: new Map(events.map((event) => [event.id, event])),
     memberNameById: new Map(memberships.map((membership) => [membership.id, membership.user.name])),
+    memberProfilePhotoById: new Map(
+      memberships.map((membership) => [membership.id, membership.user.profilePhotoUrl]),
+    ),
   };
 }
 
@@ -527,7 +531,7 @@ async function loadScheduleOverview(
         include: {
           role: { select: { name: true } },
           event: { select: { id: true, date: true } },
-          membership: { include: { user: { select: { name: true } } } },
+          membership: { include: { user: { select: { name: true, profilePhotoUrl: true } } } },
         },
       },
       publishedSnapshot: { include: { slots: true } },
@@ -550,6 +554,7 @@ async function loadScheduleOverview(
       slotIndex: slot.slotIndex,
       membershipId: slot.membershipId,
       memberName: slot.membership?.user.name ?? null,
+      profilePhotoUrl: slot.membership?.user.profilePhotoUrl ?? null,
       isManual: slot.isManual,
       isMinister: slot.isMinister,
       dateKey,
@@ -579,6 +584,9 @@ async function loadScheduleOverview(
         membershipId: slot.membershipId,
         memberName: slot.membershipId
           ? (lookups.memberNameById.get(slot.membershipId) ?? null)
+          : null,
+        profilePhotoUrl: slot.membershipId
+          ? (lookups.memberProfilePhotoById.get(slot.membershipId) ?? null)
           : null,
         isManual: slot.isManual,
         isMinister: slot.isMinister,
@@ -625,6 +633,7 @@ async function loadScheduleOverview(
           adminWorkingRows.map((slot) => ({
             membershipId: slot.membershipId,
             memberName: slot.memberName,
+            profilePhotoUrl: slot.profilePhotoUrl,
             roleId: slot.roleId,
             roleName: slot.roleName,
           })),

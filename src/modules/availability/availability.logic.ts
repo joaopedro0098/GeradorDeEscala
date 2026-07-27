@@ -8,6 +8,27 @@ export type SubmitConfirmation = {
   message: string;
 };
 
+/** Relative to the org minimum: below / exactly at / above. */
+export type ParticipationStatus = 'below' | 'exact' | 'above';
+
+export type MemberParticipationSummary = {
+  membershipId: string;
+  memberName: string;
+  profilePhotoUrl: string | null;
+  markedDays: number;
+  minimumDays: number;
+  status: ParticipationStatus;
+};
+
+export function evaluateParticipationStatus(
+  markedDays: number,
+  minimumDays: number,
+): ParticipationStatus {
+  if (markedDays < minimumDays) return 'below';
+  if (markedDays > minimumDays) return 'above';
+  return 'exact';
+}
+
 export function buildSubmitConfirmation(
   selectedDays: number,
   minimumDays: number,

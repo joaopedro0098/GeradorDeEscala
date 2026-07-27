@@ -7,6 +7,7 @@ import {
   resolveOfflineScheduleView,
   saveLastScheduleView,
 } from '@/lib/schedule-offline-cache';
+import type { MemberParticipationSummary } from '@/modules/availability/availability.logic';
 import type {
   ScheduleAssignmentCandidate,
   ScheduleOverview,
@@ -23,6 +24,7 @@ export function ScheduleAdminPageClient({
   serverOverview,
   shortagePreview,
   assignmentCandidates,
+  participationSummaries,
   availabilityLocked,
 }: {
   organizationId: string;
@@ -33,6 +35,7 @@ export function ScheduleAdminPageClient({
   serverOverview: ScheduleOverview | null;
   shortagePreview: ShortageEntryView[];
   assignmentCandidates: ScheduleAssignmentCandidate[];
+  participationSummaries: MemberParticipationSummary[];
   availabilityLocked: boolean;
 }) {
   const [isOnline, setIsOnline] = useState(true);
@@ -105,6 +108,7 @@ export function ScheduleAdminPageClient({
         overview={resolved.overview}
         shortagePreview={isCached ? [] : shortagePreview}
         assignmentCandidates={isCached ? [] : assignmentCandidates}
+        participationSummaries={isCached ? [] : participationSummaries}
         availabilityLocked={
           isCached ? Boolean(resolved.overview?.availabilityLocked) : availabilityLocked
         }

@@ -6,18 +6,20 @@ import {
   MembersCardMenu,
 } from '@/components/members/active-members-list';
 import { PendingMemberActions } from '@/components/members/pending-member-actions';
+import { DismissNotificationButton } from '@/components/members/dismiss-notification-button';
 
 export default async function AdminMembersPage() {
   const data = await getMembersPageData();
   if (!data) redirect('/login');
 
-  const { pending, active, session, roles } = data;
+  const { pending, active, session, roles, disassociations } = data;
   const canManageAdmins = canManageAdminRoles(session);
   const availableRoles = roles.map((role) => ({ id: role.id, name: role.name }));
   const activeMembers = active.map((membership) => ({
     id: membership.id,
     name: membership.user.name,
     email: membership.user.email,
+    profilePhotoUrl: membership.user.profilePhotoUrl,
     isAdmin: membership.isAdmin,
     isPrimaryAdmin: membership.isPrimaryAdmin,
     rolePreferences: membership.rolePreferences.map((preference) => ({
@@ -27,14 +29,23 @@ export default async function AdminMembersPage() {
     })),
   }));
 
+  const hasNotifications = pending.length > 0 || disassociations.length > 0;
+
   return (
     <div className="space-y-8">
       <section className="rounded-2xl border border-zinc-200 bg-white p-6">
         <h2 className="text-lg font-semibold text-zinc-900">Solicitações pendentes</h2>
-        {pending.length === 0 ? (
-          <p className="mt-3 text-sm text-zinc-600">Nenhuma solicitação pendente.</p>
-        ) : (
-          <ul className="mt-4 space-y-3">
+        {hasNotifications ? (
+          <ul className="mt-4 max-h-[calc(5*4.75rem)] space-y-3 overflow-y-auto pr-1">
+            {disassociations.map((notification) => (
+              <li
+                key={notification.id}
+                className="flex items-start justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-zinc-700"
+              >
+                <span>{notification.message}</span>
+                <DismissNotificationButton notificationId={notification.id} />
+              </li>
+            ))}
             {pending.map((membership) => (
               <li
                 key={membership.id}
@@ -48,7 +59,7 @@ export default async function AdminMembersPage() {
               </li>
             ))}
           </ul>
-        )}
+        ) : null}
       </section>
 
       <section className="rounded-2xl border border-zinc-200 bg-white p-6">

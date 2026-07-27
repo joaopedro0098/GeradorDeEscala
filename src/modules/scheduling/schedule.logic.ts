@@ -122,6 +122,7 @@ export function countAssignmentsByMember(
   slots: Array<{
     membershipId: string | null;
     memberName: string | null;
+    profilePhotoUrl?: string | null;
     roleId: string;
     roleName: string;
   }>,
@@ -133,7 +134,13 @@ export function countAssignmentsByMember(
 
     let member = countsByMember.get(slot.membershipId);
     if (!member) {
-      member = { membershipId: slot.membershipId, memberName: slot.memberName, total: 0, byRole: [] };
+      member = {
+        membershipId: slot.membershipId,
+        memberName: slot.memberName,
+        profilePhotoUrl: slot.profilePhotoUrl ?? null,
+        total: 0,
+        byRole: [],
+      };
       countsByMember.set(slot.membershipId, member);
     }
 

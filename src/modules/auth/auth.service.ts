@@ -118,11 +118,12 @@ export async function createTestMemberForOrganization(input: {
     throw new AuthServiceError('ORGANIZATION_NOT_FOUND', 'Organização não encontrada.');
   }
 
+  const passwordHash = await hashPassword(input.password);
+
   let user = await findUserByEmail(email);
   let createdUser = false;
 
   if (!user) {
-    const passwordHash = await hashPassword(input.password);
     user = await prisma.user.create({
       data: {
         email,
@@ -131,6 +132,14 @@ export async function createTestMemberForOrganization(input: {
       },
     });
     createdUser = true;
+  } else {
+    user = await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        name,
+        passwordHash,
+      },
+    });
   }
 
   const existingMembership = await prisma.membership.findUnique({
@@ -143,10 +152,21 @@ export async function createTestMemberForOrganization(input: {
   });
 
   if (existingMembership) {
-    throw new AuthServiceError(
-      'MEMBERSHIP_ALREADY_EXISTS',
-      'Este e-mail já está vinculado a esta organização.',
-    );
+    const membership = await prisma.membership.update({
+      where: { id: existingMembership.id },
+      data: {
+        status: 'ACTIVE',
+        isAdmin: false,
+        isPrimaryAdmin: false,
+      },
+    });
+
+    return {
+      userId: user.id,
+      membershipId: membership.id,
+      email,
+      createdUser,
+    };
   }
 
   const membership = await prisma.membership.create({
@@ -338,6 +358,55 @@ export async function updateOrganizationProfile(input: {
   return organization;
 }
 
+async function saveUserProfilePhoto(userId: string, dataUrl: string): Promise<string> {
+  const match = /^data:image\/(jpeg|jpg|png|webp);base64,([A-Za-z0-9+/=]+)$/i.exec(dataUrl);
+  if (!match) {
+    throw new AuthServiceError('VALIDATION', 'Imagem inválida. Use JPG, PNG ou WebP.');
+  }
+
+  const buffer = Buffer.from(match[2], 'base64');
+  const maxBytes = 800_000;
+  if (buffer.length > maxBytes) {
+    throw new AuthServiceError('VALIDATION', 'A imagem é muito grande. Tente com zoom menor.');
+  }
+
+  const uploadsDir = path.join(process.cwd(), 'public', 'uploads', 'users');
+  await mkdir(uploadsDir, { recursive: true });
+
+  const filename = `${userId}.jpg`;
+  await writeFile(path.join(uploadsDir, filename), buffer);
+
+  return `/uploads/users/${filename}?v=${Date.now()}`;
+}
+
+export async function updateUserProfile(input: {
+  userId: string;
+  name: string;
+  profilePhotoDataUrl?: string | null;
+}): Promise<{ name: string; profilePhotoUrl: string | null }> {
+  const name = input.name.trim();
+  if (name.length < 2) {
+    throw new AuthServiceError('VALIDATION', 'Informe o nome do perfil.');
+  }
+
+  let profilePhotoUrl: string | null | undefined;
+
+  if (input.profilePhotoDataUrl) {
+    profilePhotoUrl = await saveUserProfilePhoto(input.userId, input.profilePhotoDataUrl);
+  }
+
+  const user = await prisma.user.update({
+    where: { id: input.userId },
+    data: {
+      name,
+      ...(profilePhotoUrl !== undefined ? { profilePhotoUrl } : {}),
+    },
+    select: { name: true, profilePhotoUrl: true },
+  });
+
+  return user;
+}
+
 async function saveOrganizationLogo(organizationId: string, dataUrl: string): Promise<string> {
   const match = /^data:image\/(jpeg|jpg|png|webp);base64,([A-Za-z0-9+/=]+)$/i.exec(dataUrl);
   if (!match) {
@@ -371,7 +440,7 @@ export async function listActiveMembers(organizationId: string) {
   return prisma.membership.findMany({
     where: { organizationId, status: 'ACTIVE' },
     include: {
-      user: { select: { id: true, name: true, email: true } },
+      user: { select: { id: true, name: true, email: true, profilePhotoUrl: true } },
       rolePreferences: {
         orderBy: { sortOrder: 'asc' },
         select: {
@@ -401,6 +470,60 @@ export async function rejectMembership(membershipId: string, organizationId: str
 export async function removeMembership(membershipId: string, organizationId: string) {
   return prisma.membership.deleteMany({
     where: { id: membershipId, organizationId },
+  });
+}
+
+export async function leaveOrganization(input: { membershipId: string; userId: string }) {
+  const membership = await prisma.membership.findFirst({
+    where: {
+      id: input.membershipId,
+      userId: input.userId,
+      status: 'ACTIVE',
+      isPrimaryAdmin: false,
+    },
+    include: {
+      user: { select: { name: true, email: true } },
+      organization: { select: { name: true } },
+    },
+  });
+
+  if (!membership) {
+    throw new AuthServiceError('FORBIDDEN', 'Não foi possível sair desta equipe.');
+  }
+
+  const adminMemberships = await prisma.membership.findMany({
+    where: {
+      organizationId: membership.organizationId,
+      isAdmin: true,
+      status: 'ACTIVE',
+    },
+    select: { id: true },
+  });
+
+  await prisma.$transaction(async (tx) => {
+    for (const admin of adminMemberships) {
+      await tx.notification.create({
+        data: {
+          membershipId: admin.id,
+          type: NotificationType.MEMBER_DISASSOCIATED,
+          title: 'Desassociação',
+          message: `${membership.user.name} se desassociou de ${membership.organization.name}.`,
+        },
+      });
+    }
+
+    await tx.membership.delete({ where: { id: membership.id } });
+  });
+}
+
+export async function listDisassociationNotifications(membershipId: string) {
+  return prisma.notification.findMany({
+    where: {
+      membershipId,
+      type: NotificationType.MEMBER_DISASSOCIATED,
+      readAt: null,
+    },
+    orderBy: { createdAt: 'desc' },
   });
 }
 

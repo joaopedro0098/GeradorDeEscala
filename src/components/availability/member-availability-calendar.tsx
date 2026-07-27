@@ -144,7 +144,7 @@ export function MemberAvailabilityCalendar({
                 className={`min-h-11 rounded-lg border px-1 py-2 text-sm sm:px-2 sm:py-3 ${
                   event
                     ? isMarked
-                      ? 'border-zinc-900 bg-zinc-900 text-white'
+                      ? 'border-[#1e3a8a] bg-[#1e3a8a] text-white'
                       : locked
                         ? 'cursor-default border-zinc-200 bg-zinc-50 text-zinc-700'
                         : 'border-zinc-300 bg-white text-zinc-800'

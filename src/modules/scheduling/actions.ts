@@ -8,6 +8,7 @@ import { requireSession } from '@/lib/auth.server';
 import { prisma } from '@/lib/prisma';
 import { canManageMembers } from '@/modules/auth/permissions';
 import { canGenerateScheduleForOrganization } from '@/modules/organizations/subscription.logic';
+import { listMemberParticipationSummaries } from '@/modules/availability/availability.service';
 import {
   addPriorityRole,
   ConfigurationServiceError,
@@ -316,22 +317,25 @@ export async function getAdminSchedulePageData(requested: YearMonth | null) {
 
   const subscriptionCheck = canGenerateScheduleForOrganization(organization);
 
-  const [overview, shortagePreview, assignmentCandidates, availabilityLocked] = await Promise.all([
-    getScheduleOverviewForAdmin(session.organizationId, viewedMonth.year, viewedMonth.month),
-    isHistory
-      ? Promise.resolve([])
-      : getPreGenerationShortagePreview(session.organizationId, viewedMonth.year, viewedMonth.month),
-    isHistory
-      ? Promise.resolve([])
-      : getAssignmentCandidatesForAdmin(session.organizationId, viewedMonth.year, viewedMonth.month),
-    getAvailabilityLocked(session.organizationId, viewedMonth.year, viewedMonth.month),
-  ]);
+  const [overview, shortagePreview, assignmentCandidates, availabilityLocked, participationSummaries] =
+    await Promise.all([
+      getScheduleOverviewForAdmin(session.organizationId, viewedMonth.year, viewedMonth.month),
+      isHistory
+        ? Promise.resolve([])
+        : getPreGenerationShortagePreview(session.organizationId, viewedMonth.year, viewedMonth.month),
+      isHistory
+        ? Promise.resolve([])
+        : getAssignmentCandidatesForAdmin(session.organizationId, viewedMonth.year, viewedMonth.month),
+      getAvailabilityLocked(session.organizationId, viewedMonth.year, viewedMonth.month),
+      listMemberParticipationSummaries(session.organizationId, viewedMonth.year, viewedMonth.month),
+    ]);
 
   return {
     session,
     overview,
     shortagePreview,
     assignmentCandidates,
+    participationSummaries,
     availabilityLocked: overview?.availabilityLocked ?? availabilityLocked,
     workingMonth,
     viewedMonth,
