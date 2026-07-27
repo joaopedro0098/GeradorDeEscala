@@ -1,8 +1,10 @@
-import { SignJWT, jwtVerify } from 'jose';
+import { decodeJwt, SignJWT, jwtVerify } from 'jose';
 import type { PendingLoginPayload, SessionPayload } from './types';
 
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 7;
 const PENDING_LOGIN_MAX_AGE_SECONDS = SESSION_MAX_AGE_SECONDS;
+/** Rotate auth cookies only when this many seconds remain before expiry. */
+const AUTH_TOKEN_REFRESH_THRESHOLD_SECONDS = 60 * 60 * 24;
 
 export function getAuthCookieOptions(maxAgeSeconds: number) {
   return {
@@ -28,6 +30,20 @@ export async function createSessionToken(payload: SessionPayload): Promise<strin
     .setIssuedAt()
     .setExpirationTime(`${SESSION_MAX_AGE_SECONDS}s`)
     .sign(getSessionSecretKey());
+}
+
+export function shouldRefreshAuthToken(
+  token: string,
+  thresholdSeconds = AUTH_TOKEN_REFRESH_THRESHOLD_SECONDS,
+): boolean {
+  try {
+    const { exp } = decodeJwt(token);
+    if (typeof exp !== 'number') return true;
+    const now = Math.floor(Date.now() / 1000);
+    return exp - now <= thresholdSeconds;
+  } catch {
+    return true;
+  }
 }
 
 export async function verifySessionToken(token: string): Promise<SessionPayload | null> {

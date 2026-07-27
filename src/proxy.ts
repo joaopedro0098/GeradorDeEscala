@@ -7,6 +7,7 @@ import {
   pendingLoginMaxAgeSeconds,
   sessionCookieName,
   sessionMaxAgeSeconds,
+  shouldRefreshAuthToken,
   verifyPendingLoginToken,
   verifySessionToken,
 } from '@/modules/auth/session-token';
@@ -46,8 +47,10 @@ export async function proxy(request: NextRequest) {
       }
 
       const response = NextResponse.next();
-      const refreshedToken = await createSessionToken(session);
-      response.cookies.set(sessionCookieName, refreshedToken, getAuthCookieOptions(sessionMaxAgeSeconds));
+      if (shouldRefreshAuthToken(token)) {
+        const refreshedToken = await createSessionToken(session);
+        response.cookies.set(sessionCookieName, refreshedToken, getAuthCookieOptions(sessionMaxAgeSeconds));
+      }
       return response;
     }
 
@@ -55,12 +58,14 @@ export async function proxy(request: NextRequest) {
       const pending = await verifyPendingLoginToken(pendingToken);
       if (pending) {
         const response = NextResponse.next();
-        const refreshedToken = await createPendingLoginToken(pending);
-        response.cookies.set(
-          pendingLoginCookieName,
-          refreshedToken,
-          getAuthCookieOptions(pendingLoginMaxAgeSeconds),
-        );
+        if (shouldRefreshAuthToken(pendingToken)) {
+          const refreshedToken = await createPendingLoginToken(pending);
+          response.cookies.set(
+            pendingLoginCookieName,
+            refreshedToken,
+            getAuthCookieOptions(pendingLoginMaxAgeSeconds),
+          );
+        }
         return response;
       }
     }
@@ -82,8 +87,10 @@ export async function proxy(request: NextRequest) {
   }
 
   const response = NextResponse.next();
-  const refreshedToken = await createSessionToken(session);
-  response.cookies.set(sessionCookieName, refreshedToken, getAuthCookieOptions(sessionMaxAgeSeconds));
+  if (shouldRefreshAuthToken(token)) {
+    const refreshedToken = await createSessionToken(session);
+    response.cookies.set(sessionCookieName, refreshedToken, getAuthCookieOptions(sessionMaxAgeSeconds));
+  }
   return response;
 }
 

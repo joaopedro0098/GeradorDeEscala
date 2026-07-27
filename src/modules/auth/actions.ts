@@ -324,13 +324,6 @@ export async function leaveOrganizationAction(membershipId: string): Promise<voi
   redirect('/membro/organizacoes');
 }
 
-    revalidatePath('/admin/membros');
-    return {};
-  } catch (error) {
-    return handleActionError(error);
-  }
-}
-
 export async function approveMemberAction(membershipId: string): Promise<void> {
   const session = await getSessionFromCookies();
   if (!session || !canManageMembers(session)) {
